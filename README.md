@@ -10,6 +10,19 @@ Gives Claude Code a structured way to delegate analysis tasks to Codex — brain
 
 Brainstorm, Red-team, Debug, Plan Review, Diff Review, Spec Extraction, Rollout/Rollback, Compare/Decide, Test Gaps, Explain, Post-mortem, Attack Surface, Exhausted Hypotheses.
 
+## Session resume
+
+Multi-round iterations on the same artifact (review plan v1 → v2, iterative debugging) can preserve prior Codex context via named sessions:
+
+```
+/codex --new-session review-auth   # create a named session
+/codex --session review-auth       # resume it later
+/codex list                        # see all sessions
+/codex delete review-auth          # clean up
+```
+
+Sessions are stored per-worktree under `.claude/.codex-sessions/`. See the Session Management section in SKILL.md for the full workflow.
+
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/code)
