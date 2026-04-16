@@ -28,6 +28,10 @@ Sessions are stored per-worktree under `.claude/.codex-sessions/`. See the Sessi
 - [Claude Code](https://claude.ai/code)
 - [Codex CLI](https://github.com/openai/codex) installed and on PATH
 
+## Optional: `reviewer` subagent
+
+The skill runs a mandatory QA pass using a `reviewer` subagent after summarizing high-stakes modes (`plan-review`, `red-team`, `diff-review`, `exhausted-hypotheses`, `attack-surface`). It expects the subagent from [koenvdheide/claude-reviewer](https://github.com/koenvdheide/claude-reviewer). Without it, the skill falls back to self-review against the same fidelity rules — workflow still works, just less rigorous.
+
 ## Installation
 
 Copy or clone into your Claude Code skills directory:
