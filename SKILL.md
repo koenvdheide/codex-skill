@@ -43,10 +43,10 @@ description: >-
 
 ```bash
 # Short prompt as argument
-codex exec "<prompt>"
+codex exec --ephemeral "<prompt>"
 
 # Long prompt via stdin (preferred for multi-line)
-codex exec -s read-only - <<'PROMPT'
+codex exec --ephemeral -s read-only - <<'PROMPT'
 Your long prompt here...
 PROMPT
 ```
@@ -55,8 +55,8 @@ PROMPT
 
 **Backtick safety**: Never use `$(cat file)` inside unquoted heredocs (`<<PROMPT`) when file may contain backticks (markdown, code) or the delimiter word. Bash interprets backticks as command substitution and delimiter words as heredoc terminators → "unexpected EOF" errors. Safe patterns:
 
-- **Pipe pattern** (preferred): `cat file | codex exec -s read-only -`
-- **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec -`
+- **Pipe pattern** (preferred): `cat file | codex exec --ephemeral -s read-only -`
+- **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec --ephemeral -`
 - **Quoted heredoc**: use `<<'PROMPT'` (prevents ALL expansion — no `$()` inside, but safe)
 
 **Windows sandbox limitation:** On Windows, `-s read-only` blocks ALL shell commands (they route through `powershell.exe` which sandbox rejects). Result: Codex cannot read files in read-only mode on Windows. For modes needing file reading (Debug, Plan Review, Test Gaps, Explain, Rollout/Rollback, Attack Surface), use `--full-auto` instead of `-s read-only`. See Mode-to-Sandbox Table below for correct mapping. Always include in prompt text: `"Use PowerShell-compatible commands (Get-Content, Select-String). Codex's internal shell on Windows is PowerShell, not Git Bash."`
@@ -167,7 +167,7 @@ Ready-made patterns for common workflows:
 
 ```bash
 # Review staged changes adversarially
-codex exec -s read-only -o /tmp/codex-red-team.txt - <<PROMPT
+codex exec --ephemeral -s read-only -o /tmp/codex-red-team.txt - <<PROMPT
 Mode: red-team
 Question: Find the most likely regressions in this diff.
 Context:
@@ -176,7 +176,7 @@ Return: top 3 risks, the invariant each threatens, and missing tests.
 PROMPT
 
 # Cluster test failures by root cause
-codex exec -s read-only -o /tmp/codex-debug.txt - <<PROMPT
+codex exec --ephemeral -s read-only -o /tmp/codex-debug.txt - <<PROMPT
 Mode: debug
 Question: Cluster these failures by likely root cause.
 Context:
@@ -187,6 +187,163 @@ PROMPT
 ```
 
 Note: recipes use unquoted `<<PROMPT` (not `<<'PROMPT'`) so `$(...)` command substitutions expand inside heredoc.
+
+## Session Management
+
+Session resume lets you continue a prior Codex conversation instead of starting fresh. Useful for multi-round review of the same artifact (plan v1 → v2), iterative debugging, or sustained brainstorming.
+
+### Session Arguments
+
+| Argument | Behavior |
+|----------|----------|
+| (none) | One-shot. Forces `--ephemeral`. No persistence. |
+| `--new-session <slug>` | Create a named session. Hard-fail if slug exists. |
+| `--session <slug>` | Resume a named session. Hard-fail if missing or zombie. |
+| `--artifact <path>` | Store absolute artifact path in session record. Only with `--new-session` or `--session`. |
+| `--reuse-session` | Override review-mode fresh default. Only with `--session`. |
+| `list` | List all sessions for this worktree. |
+| `delete <slug>` | Remove session record and any stale lock. Hard-fail if lock is live. |
+
+### Slug Rules
+
+- Accepts `[a-z0-9-]`. Uppercase input is normalized to lowercase.
+- Max 64 characters. Rejects Windows reserved names (CON, PRN, NUL, etc.).
+- Choose descriptive slugs: `review-auth-migration`, `brainstorm-caching-layer`.
+
+### Flag Validation
+
+These combinations are errors — hard-fail with a message before invoking Codex:
+
+| Combination | Error |
+|-------------|-------|
+| `--new-session` + `--session` | "Cannot create and resume simultaneously." |
+| `--session` + red-team/diff-review mode (no `--reuse-session`) | "Review modes default to fresh. Pass --reuse-session to resume, or use --new-session for a new session." |
+| `--reuse-session` without `--session` | "--reuse-session requires --session." |
+| `--reuse-session` + `--new-session` | "--reuse-session requires --session, not --new-session." |
+| `--artifact` without `--session` or `--new-session` | "--artifact requires a session (--session or --new-session)." |
+| `--artifact` + `list` or `delete` | "--artifact is not valid with list or delete." |
+
+### Session Workflow
+
+**Source the session manager before any session operation:**
+```bash
+source ~/.claude/skills/codex/session-mgr.sh
+smgr_init_dir codex
+```
+
+**Stderr handling:** Session calls redirect stderr to a temp file (`2>"$STDERR_FILE"`) to capture the session ID. This replaces the existing `2>&1` or `2>/dev/null` patterns used in one-shot calls. Do NOT combine `2>"$STDERR_FILE"` with `2>&1` — they are mutually exclusive. One-shot calls (with `--ephemeral`) keep existing stderr handling unchanged.
+
+**Resume sandbox limitation:** `codex exec resume` defaults to `workspace-write` regardless of the original session's sandbox setting. The `-s` flag is not supported on resume. This means sessions created with `-s read-only` (brainstorm, red-team, diff-review, etc.) silently widen on resume. Mitigation: session resume is most valuable for `--full-auto` modes (debug, plan-review, test-gaps) which already have write access. For read-only modes, one-shot with fresh piped content is preferred anyway.
+
+**Creating a new session (`--new-session <slug>`):**
+```bash
+# 1. Validate slug
+SLUG=$(smgr_validate_slug "<user-slug>")
+
+# 2. Validate artifact if provided
+if [[ -n "$ARTIFACT_PATH" ]]; then
+  ARTIFACT_PATH=$(realpath "$ARTIFACT_PATH")
+  if [[ ! -f "$ARTIFACT_PATH" ]]; then
+    echo "ERROR: Artifact not found: $ARTIFACT_PATH" >&2; exit 1
+  fi
+fi
+
+# 3. Acquire lock (with cleanup trap)
+smgr_lock "$SLUG"
+trap 'smgr_unlock "$SLUG"' EXIT
+
+# 4. Run codex (NO --ephemeral), capture session ID from stderr
+STDERR_FILE=$(mktemp)
+codex exec [flags] -o /tmp/codex-slug.txt [prompt] 2>"$STDERR_FILE"
+# [flags] and [prompt] follow the existing invocation patterns in the skill
+# (Mode-to-Sandbox table, Base Prompt Template, Shell Pipeline Recipes).
+# The session workflow wraps around those — it does not replace them.
+
+# 5. Extract session ID from stderr, strip CRLF, validate UUID
+SESSION_ID=$(sed -n 's/^session id: //p' "$STDERR_FILE" | tr -d '\r' | head -1)
+rm -f "$STDERR_FILE"
+if [[ -z "$SESSION_ID" ]]; then
+  smgr_unlock "$SLUG"
+  echo "ERROR: Could not capture Codex session ID from stderr." >&2; exit 1
+fi
+if [[ ! "$SESSION_ID" =~ ^[0-9a-f-]+$ ]]; then
+  smgr_unlock "$SLUG"
+  echo "ERROR: Invalid session ID format: '$SESSION_ID'" >&2; exit 1
+fi
+
+# 6. Create record (only after CLI session confirmed)
+smgr_create "$SLUG" "$SESSION_ID" "$ARTIFACT_PATH"
+
+# 7. Release lock
+smgr_unlock "$SLUG"
+```
+
+**Resuming a session (`--session <slug>`):**
+```bash
+# 1. Validate slug
+SLUG=$(smgr_validate_slug "<user-slug>")
+
+# 2. Acquire lock (with cleanup trap)
+smgr_lock "$SLUG"
+trap 'smgr_unlock "$SLUG"' EXIT
+
+# 3. Look up CLI session ID
+SESSION_ID=$(smgr_lookup "$SLUG")
+
+# 4. Resume codex
+codex exec resume "$SESSION_ID" [flags] -o /tmp/codex-slug.txt [prompt]
+# If resume fails with "session not found" → zombie. Hard-fail.
+
+# 5. Update last-used timestamp
+smgr_update "$SLUG"
+
+# 6. Update artifact path if --artifact provided on resume
+if [[ -n "${ARTIFACT_PATH:-}" ]]; then
+  ARTIFACT_PATH=$(realpath "$ARTIFACT_PATH")
+  if [[ ! -f "$ARTIFACT_PATH" ]]; then
+    echo "WARNING: Artifact not found: $ARTIFACT_PATH (path not updated)" >&2
+  else
+    smgr_update_artifact "$SLUG" "$ARTIFACT_PATH"
+  fi
+fi
+
+# 7. Release lock
+smgr_unlock "$SLUG"
+```
+
+**One-shot (default, no session flags):**
+```bash
+codex exec --ephemeral [flags] -o /tmp/codex-slug.txt [prompt]
+# No session management needed.
+```
+
+**List sessions:**
+```bash
+source ~/.claude/skills/codex/session-mgr.sh
+smgr_init_dir codex
+smgr_list
+```
+
+**Delete session:**
+```bash
+source ~/.claude/skills/codex/session-mgr.sh
+smgr_init_dir codex
+smgr_delete "<slug>"
+```
+
+### Review-Mode Gating
+
+When the mode is `red-team` or `diff-review` and `--session` is passed without `--reuse-session`, hard-fail:
+
+> "Review modes (red-team, diff-review) default to fresh sessions to prevent self-consistency bias. Pass `--reuse-session` to resume, or use `--new-session` for a new session."
+
+This prevents asking the model to attack its own prior reasoning.
+
+### Zombie Detection
+
+A zombie is a session where the CLI returns a definitive error on resume (session not found, invalid ID, auth mismatch). Transient errors (429, 503, network timeout) are retryable — do not treat as zombie.
+
+On zombie detection: hard-fail with message "Session '<slug>' is a zombie (CLI session no longer exists). Use `delete <slug>` to remove the record."
 
 ## Claude/Codex Collaboration Loop
 
