@@ -15,7 +15,7 @@ description: >-
 ## When to Use Codex
 
 - **Exploring design space** — want 3+ alternatives before committing → **Brainstorm**
-- **Have a plan** — want it attacked before investing implementation time → **Red-team**
+- **Have a plan or design** — want weaknesses flagged (failure modes + over-engineering + missed simplifications) before investing implementation time → **Red-team**
 - **Stuck on a bug** — exhausted obvious hypotheses, want fresh ones → **Debug**
 - **Produced large plan** — want sequencing, gap, rollback review → **Plan Review**
 - **Have a diff or report** — contains factual claims needing verification → **Diff Review**
@@ -148,7 +148,15 @@ Omit empty sections rather than forcing every field.
 Append one of these to the base template:
 
 - **Brainstorm**: "Generate 3-5 alternatives with tradeoffs. End with a recommendation and why."
-- **Red-team**: "Attack assumptions. Give the strongest counterargument. Find failure modes. Do not agree just to be agreeable."
+- **Red-team**: "Find weaknesses. Structure response under two explicit headings:
+
+## Breakage
+Failure modes, edge cases, wrong assumptions. What could break. Attack assumptions. Give the strongest counterargument.
+
+## Simplifications
+Over-engineering (unnecessary abstractions, dead config, layers that don't earn their keep) and missed reductions (what could be flatter, fewer, smaller). For each: what to cut/merge/flatten, why safe, expected impact. Do NOT strip defensive code at system boundaries, WHY comments, or anything whose removal sacrifices clarity for brevity.
+
+Do not agree just to be agreeable."
 - **Debug**: "Rank hypotheses by likelihood. Suggest the cheapest diagnostic step for each. Focus on hypotheses I am likely to have missed."
 - **Plan Review**: "Find missing steps, sequencing issues, rollback gaps, and operational risks. Cite file names and line numbers when pointing out issues."
 - **Diff Review**: "For each claim, verify from code or docs. Flag assumptions stated as facts. Check for stale information."
