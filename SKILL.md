@@ -30,7 +30,7 @@ description: >-
 
 ## When NOT to Use Codex
 
-- Task is trivial or you have high confidence in the answer
+- Task is trivial
 - Answer is already in context
 - User needs quick response (Codex takes 1–5 minutes)
 - Already used Codex for same question this session (one retry with narrower prompt is fine)
