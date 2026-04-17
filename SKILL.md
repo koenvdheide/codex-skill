@@ -14,28 +14,40 @@ description: >-
 
 ## When to Use Codex
 
-- **Exploring design space** — want 3+ alternatives before committing → **Brainstorm**
+- **Exploring design space** — want alternatives before committing → **Brainstorm**
 - **Have a plan or design** — want weaknesses flagged (failure modes + over-engineering + missed simplifications) before investing implementation time → **Red-team**
-- **Stuck on a bug** — exhausted obvious hypotheses, want fresh ones → **Debug**
-- **Produced large plan** — want sequencing, gap, rollback review → **Plan Review**
-- **Have a diff or report** — contains factual claims needing verification → **Diff Review**
-- **Messy ticket or legacy code** — need concrete acceptance checklist before coding → **Spec Extraction**
+- **Bug where local reasoning is stuck** — obvious hypotheses ruled out, OR unfamiliar stack where causes/instrumentation/repro are non-obvious → **Debug**
+- **Plan spans multiple subsystems or has non-trivial step ordering** — want sequencing, gap, rollback review → **Plan Review**
+- **Have a diff or report** — want factual claims verified, regressions found, or mismatch with the ticket/spec caught (prose optional) → **Diff Review**
+- **Ticket is prose with implicit requirements, or legacy code lacks clear contracts** — need concrete acceptance checklist before coding → **Spec Extraction**
 - **Shipping risky change** — schema update, API change, migration with operational impact → **Rollout/Rollback**
-- **2–3 concrete approaches** — need independent tradeoff evaluation to pick one → **Compare/Decide**
-- **Finished implementation** — want missing test cases, untested edge cases → **Test Gaps**
-- **Unfamiliar code** — legacy, undocumented, complex algorithms needing explanation → **Explain**
+- **Want independent tradeoff evaluation to pick among a handful of concrete approaches** → **Compare/Decide**
+- **Want regression cases or edge conditions** — whether before coding a risky refactor or after finishing an implementation → **Test Gaps**
+- **Careful reading leaves meaningful parts unclear** — undocumented, complex algorithms, legacy code where the non-obvious logic needs surfacing → **Explain**
 - **Production incident or CI failure** — have logs/traces, need root cause → **Post-mortem**
-- **Running out of attack surfaces** — bug bounty or security testing, need fresh angles → **Attack Surface**
+- **Security-sensitive design or diff, OR obvious attack vectors exhausted in ongoing testing** — auth, permissions, tenant boundaries, file upload, parser, secrets, untrusted input → **Attack Surface**
 - **Exhausted known hypotheses** — all leads investigated, dead-ends recorded, want external model to find what pipeline systematically missed → **Exhausted Hypotheses**
 
 ## When NOT to Use Codex
 
-- Task is trivial
+- Single-file mechanical edit (typo, rename, one-import change) with no new concepts
 - Answer is already in context
-- User needs quick response (Codex takes 1–5 minutes)
-- Already used Codex for same question this session (one retry with narrower prompt is fine)
-- No concrete artifact or question yet (vague "think about this")
-- User wants execution, not critique
+- Conversation is active back-and-forth, or user indicated urgency — 1–5 min wait would break the flow
+- Already used Codex (or Gemini) for this question this session, OR you're about to fire both on the same prompt — retry narrower prompt, or escalate to user
+- No specific artifact or concrete question — just a topic or area to "think about"
+- Prompt would contain secrets, credentials, or PII
+- Question is about Claude Code internals (hooks, skills, MCP, settings) — `/claude-code-docs` knows, external CLIs don't
+- Answer lives in library/tool docs — WebFetch, Context7, or `man` is cheaper
+- Missing local facts — reproduce the issue, inspect logs, run `rg`/`git`/`blame`, or ask user for clarification — before outsourcing reasoning
+- Decision depends on product priority, compliance, or release timing not in my context — ask the user (who owns this) first
+
+## Precedence
+
+When multiple bullets match a single prompt:
+
+- **WNTU wins over WTU.** If any When NOT to Use bullet matches, don't fire — even if a When to Use bullet also matches. If unsure, ask the user ("I'd skip Codex here because X; proceed anyway?") rather than firing.
+- **Among WTU, pick the most specific.** "Shipping risky change" over "Have a plan or design." "Security-sensitive diff" over "Have a diff or report." The more specific mode carries more relevant context.
+- **Among WNTU, privacy beats cost.** Privacy/confidentiality skips are hard (never fire). Session/cost skips are soft (can escalate to user). If a prompt would contain secrets, that overrides every other consideration.
 
 ## Execution Reference
 
