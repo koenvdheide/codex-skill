@@ -248,7 +248,7 @@ These combinations are errors — hard-fail with a message before invoking Codex
 
 **Source the session manager before any session operation:**
 ```bash
-source ~/.claude/skills/codex/session-mgr.sh
+source "${CLAUDE_PLUGIN_ROOT}/skills/codex/session-mgr.sh"
 smgr_init_dir codex
 ```
 
@@ -340,14 +340,14 @@ codex exec --ephemeral [flags] -o /tmp/codex-slug.txt [prompt]
 
 **List sessions:**
 ```bash
-source ~/.claude/skills/codex/session-mgr.sh
+source "${CLAUDE_PLUGIN_ROOT}/skills/codex/session-mgr.sh"
 smgr_init_dir codex
 smgr_list
 ```
 
 **Delete session:**
 ```bash
-source ~/.claude/skills/codex/session-mgr.sh
+source "${CLAUDE_PLUGIN_ROOT}/skills/codex/session-mgr.sh"
 smgr_init_dir codex
 smgr_delete "<slug>"
 ```

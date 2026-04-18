@@ -9,6 +9,5 @@
   "homepage": "https://github.com/koenvdheide/codex-skill",
   "repository": "https://github.com/koenvdheide/codex-skill",
   "license": "MIT",
-  "keywords": ["codex", "review", "llm", "cli", "red-team"],
-  "skills": ["./"]
+  "keywords": ["codex", "review", "llm", "cli", "red-team"]
 }
