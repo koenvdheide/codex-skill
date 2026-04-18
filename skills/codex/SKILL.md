@@ -168,20 +168,31 @@ Append one of these to the base template:
 ## Breakage
 Failure modes, edge cases, wrong assumptions. What could break. Attack assumptions. Give the strongest counterargument.
 
+Prioritize the classes of failure that are expensive, dangerous, or hard to detect:
+- auth, permissions, tenant isolation, and trust boundaries
+- data loss, corruption, duplication, and irreversible state changes
+- rollback safety, retries, partial failure, and idempotency gaps
+- race conditions, ordering assumptions, stale state, and re-entrancy
+- empty-state, null, timeout, and degraded-dependency behavior
+- version skew, schema drift, migration hazards, and compatibility regressions
+- observability gaps that would hide failure or make recovery harder
+
+Default to skepticism. Do not give credit for good intent, partial fixes, or likely follow-up work. If a code path only works on the happy path, treat that as a real weakness. Prefer depth over breadth: one fully-evidenced finding beats three speculative ones.
+
 ## Simplifications
 Over-engineering (unnecessary abstractions, dead config, layers that don't earn their keep) and missed reductions (what could be flatter, fewer, smaller). For each: what to cut/merge/flatten, why safe, expected impact. Do NOT strip defensive code at system boundaries, WHY comments, or anything whose removal sacrifices clarity for brevity.
 
 Do not agree just to be agreeable."
 - **Debug**: "Rank hypotheses by likelihood. Suggest the cheapest diagnostic step for each. Focus on hypotheses I am likely to have missed."
 - **Plan Review**: "Find missing steps, sequencing issues, rollback gaps, and operational risks. Cite file names and line numbers when pointing out issues."
-- **Diff Review**: "For each claim, verify from code or docs. Flag assumptions stated as facts. Check for stale information."
+- **Diff Review**: "For each claim, verify from code or docs. Flag assumptions stated as facts. Check for stale information. Include a blast-radius note: touched surfaces, downstream callers, and any migration or test surface the diff pulls into scope."
 - **Spec Extraction**: "Extract invariants, edge cases, non-goals, and a test checklist. Output a concrete acceptance criteria list, not prose."
-- **Rollout/Rollback**: "Propose a phased rollout, observability checks, feature-flag strategy, and rollback plan. Identify the point of no return."
+- **Rollout/Rollback**: "Propose a phased rollout, observability checks, feature-flag strategy, and rollback plan. Identify the point of no return. Map the blast radius up front: touched surfaces, downstream callers, migrations, and operational impact."
 - **Compare/Decide**: "Evaluate each option against the stated constraints. For each, list strengths, weaknesses, and hidden risks. Pick one and explain why."
-- **Test Gaps**: "Identify untested edge cases, missing error paths, and boundary conditions. Output a concrete test checklist, not general advice."
+- **Test Gaps**: "Identify untested edge cases, missing error paths, and boundary conditions. Output a concrete test checklist, not general advice. Map the blast radius first — touched functions, downstream callers, and the test surface that should cover them — so the checklist reaches beyond the directly changed code."
 - **Explain**: "Read the code and explain what it does, why it's structured this way, and what the non-obvious parts are. Flag anything that looks like a bug or anti-pattern."
 - **Post-mortem**: "Analyze the timeline, identify the root cause, distinguish contributing factors from the trigger, and suggest preventive measures. Cite specific log entries as evidence."
-- **Attack Surface**: "Identify overlooked attack vectors, underexplored entry points, and non-obvious vulnerability classes for this target. Consider logic flaws, trust boundaries, race conditions, and chained weaknesses — not just OWASP top 10. Prioritize by likelihood and impact."
+- **Attack Surface**: "Identify overlooked attack vectors, underexplored entry points, and non-obvious vulnerability classes for this target. Consider logic flaws, trust boundaries, race conditions, and chained weaknesses — not just OWASP top 10. Prioritize by likelihood and impact. For each finding, note the blast radius: the tenant isolation broken and the data or actions exposed."
 - **Exhausted Hypotheses**: "You are reviewing a codebase that has already been through extensive security analysis. All obvious and semi-obvious hypotheses have been investigated. Your job is to find what was missed — not what was already tried. Generate 5-10 novel vulnerability hypotheses NOT listed in the dead-ends or existing hypotheses. For each: (1) exact file:line, (2) attack scenario with concrete steps, (3) why a systematic review pipeline would miss this, (4) impact if exploitable, (5) what makes this esoteric or non-obvious."
 
 ## Shell Pipeline Recipes
