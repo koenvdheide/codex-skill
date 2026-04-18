@@ -1,6 +1,6 @@
 # codex-skill
 
-A [Claude Code](https://claude.ai/code) skill that invokes the local [Codex CLI](https://github.com/openai/codex) as an independent analysis partner.
+A [Claude Code](https://claude.ai/code) plugin that invokes the local [Codex CLI](https://github.com/openai/codex) as an independent analysis partner.
 
 ## What it does
 
@@ -14,19 +14,20 @@ Brainstorm, Red-team, Debug, Plan Review, Diff Review, Spec Extraction, Rollout/
 
 Multi-round iterations on the same artifact (review plan v1 → v2, iterative debugging) can preserve prior Codex context via named sessions:
 
-```
-/codex --new-session review-auth   # create a named session
-/codex --session review-auth       # resume it later
-/codex list                        # see all sessions
-/codex delete review-auth          # clean up
+```text
+/codex:codex --new-session review-auth   # create a named session
+/codex:codex --session review-auth       # resume it later
+/codex:codex list                        # see all sessions
+/codex:codex delete review-auth          # clean up
 ```
 
-Sessions are stored per-worktree under `.claude/.codex-sessions/`. See the Session Management section in SKILL.md for the full workflow.
+Sessions are stored per-worktree under `.claude/.codex-sessions/`. See the Session Management section in `skills/codex/SKILL.md` for the full workflow.
 
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/code)
 - [Codex CLI](https://github.com/openai/codex) installed and on PATH
+- Bash or Git Bash (the skill's session management uses `source` on a bash script — `skills/codex/session-mgr.sh`)
 
 ## Optional: `reviewer` subagent
 
@@ -34,18 +35,26 @@ The skill runs a mandatory QA pass using a `reviewer` subagent after summarizing
 
 ## Installation
 
-Copy or clone into your Claude Code skills directory:
+Via the `review-plugins` marketplace:
 
-```bash
-git clone https://github.com/koenvdheide/codex-skill.git ~/.claude/skills/codex
+```text
+/plugin marketplace add koenvdheide/review-plugins
+/plugin install codex@review-plugins
+```
+
+Or add this repo directly as a single-plugin marketplace:
+
+```text
+/plugin marketplace add koenvdheide/codex-skill
+/plugin install codex@codex-skill
 ```
 
 ## Usage
 
 Claude invokes the skill automatically when a task matches, or you can invoke it directly:
 
-```
-/codex red-team my authentication refactor plan
+```text
+/codex:codex red-team my authentication refactor plan
 ```
 
 ## License
