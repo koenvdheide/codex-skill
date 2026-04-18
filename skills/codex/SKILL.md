@@ -120,7 +120,7 @@ codex exec review "Focus on security"    # Custom review instructions
 
 - Set generous Bash timeout, or omit when using `run_in_background: true`
 - Use `run_in_background: true` so user is not blocked waiting
-- **Always use `-o /tmp/codex-<descriptive-slug>.txt`** to write final analysis to clean file. Separates output from shell noise (especially on Windows where Codex logs hundreds of lines of PowerShell/cmd routing). Read `-o` file for analysis, not background task output file.
+- **Always use `-o /tmp/codex-<descriptive-slug>.txt`** to write final analysis to clean file. Separates output from shell noise. Read `-o` file for analysis, not background task output file.
 - When running in background, also use `2>&1` to capture stderr — background output file serves as debug log if `-o` file is empty or missing
 - Add `--skip-git-repo-check` when running outside a git repository
 - **Cleanup:** after reading `-o` file, delete it (`rm -f /tmp/codex-<slug>.txt`). Temp files accumulate otherwise.
