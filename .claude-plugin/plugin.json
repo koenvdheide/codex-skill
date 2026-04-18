@@ -1,0 +1,14 @@
+{
+  "name": "codex",
+  "version": "1.0.0",
+  "description": "Wraps the Codex CLI as an independent analysis partner — /codex:codex skill supports brainstorm, red-team, debug, plan-review, diff-review, spec-extraction, test-gaps, explain, compare-decide, post-mortem, rollout-rollback, attack-surface, and exhausted-hypotheses modes",
+  "author": {
+    "name": "Koen van der Heide",
+    "url": "https://github.com/koenvdheide"
+  },
+  "homepage": "https://github.com/koenvdheide/codex-skill",
+  "repository": "https://github.com/koenvdheide/codex-skill",
+  "license": "MIT",
+  "keywords": ["codex", "review", "llm", "cli", "red-team"],
+  "skills": ["./"]
+}
