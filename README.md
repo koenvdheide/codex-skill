@@ -23,6 +23,12 @@ Multi-round iterations on the same artifact (review plan v1 → v2, iterative de
 
 Sessions are stored per-worktree under `.claude/.codex-sessions/`. See the Session Management section in `skills/codex/SKILL.md` for the full workflow.
 
+## Convergence mode (iterative review)
+
+For reviewing artifacts that evolve across multiple revisions — specs, plans, designs — Codex can run in a convergence loop: review → fix → re-review until the reviewer gives an affirmative verdict or you stop. Claude orchestrates the loop with user gates after each round, cites prior findings on each pass so the reviewer can detect drift, and watches for the scope-drift failure mode where each round's "real" findings pull the artifact into a design the user never asked for.
+
+See the Convergence Mode section in `skills/codex/SKILL.md` for the loop shape (Gate 1 / Gate 2), per-round prompt construction, and the anti-pattern guidance that tells Claude when to stop and re-confirm scope instead of continuing.
+
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/code)
