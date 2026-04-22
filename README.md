@@ -15,10 +15,10 @@ Brainstorm, Red-team, Debug, Plan Review, Diff Review, Spec Extraction, Rollout/
 Multi-round iterations on the same artifact (review plan v1 → v2, iterative debugging) can preserve prior Codex context via named sessions:
 
 ```text
-/codex:codex --new-session review-auth   # create a named session
-/codex:codex --session review-auth       # resume it later
-/codex:codex list                        # see all sessions
-/codex:codex delete review-auth          # clean up
+/codex --new-session review-auth   # create a named session
+/codex --session review-auth       # resume it later
+/codex list                        # see all sessions
+/codex delete review-auth          # clean up
 ```
 
 Sessions are stored per-worktree under `.claude/.codex-sessions/`. See the Session Management section in `skills/codex/SKILL.md` for the full workflow.
@@ -62,7 +62,7 @@ Refresh later with `/plugin marketplace update review-plugins` (or `codex-skill`
 Claude invokes the skill automatically when a task matches, or you can invoke it directly:
 
 ```text
-/codex:codex red-team my authentication refactor plan
+/codex red-team my authentication refactor plan
 ```
 
 ## License
