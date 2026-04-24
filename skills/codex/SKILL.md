@@ -187,7 +187,16 @@ Prioritize the classes of failure that are expensive, dangerous, or hard to dete
 - version skew, schema drift, migration hazards, and compatibility regressions
 - observability gaps that would hide failure or make recovery harder
 
-Default to skepticism. Do not give credit for good intent, partial fixes, or likely follow-up work. If a code path only works on the happy path, treat that as a real weakness. Prefer depth over breadth: one fully-evidenced finding beats three speculative ones.
+Default to skepticism. Do not give credit for good intent, partial fixes, or likely follow-up work. If a code path only works on the happy path AND the sad path is reachable from an untrusted caller or a realistic operational failure, treat that as a real weakness. Prefer depth over breadth: one fully-evidenced finding beats three speculative ones.
+
+Do NOT flag as Breakage:
+- edge cases unless reachable through a less-trusted data path or realistic operational failure
+- missing validation at private call sites only when every caller already preserves the invariant across the full data path
+- missing error handling only for invariants guaranteed without runtime data, casts/assertions, peer/schema skew, or cardinality assumptions
+- "could in theory fail" without naming the caller, input, and concrete failure
+- missing retries/fallbacks only for deterministic in-process work; I/O, scheduling, and cross-process effects can fail operationally
+
+Prefer 'no finding' over a speculative finding. If a finding would cause the user to ADD defensive code, also ask whether the same defect could be prevented by removing code instead.
 
 ## Simplifications
 Over-engineering (unnecessary abstractions, dead config, layers that don't earn their keep) and missed reductions (what could be flatter, fewer, smaller). For each: what to cut/merge/flatten, why safe, expected impact. Do NOT strip defensive code at system boundaries, WHY comments, or anything whose removal sacrifices clarity for brevity.
