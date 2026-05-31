@@ -41,21 +41,14 @@ The skill runs a mandatory QA pass using a `reviewer` subagent after summarizing
 
 ## Installation
 
-Via the `review-plugins` marketplace:
+Via the `agent-tools` marketplace:
 
 ```text
-/plugin marketplace add koenvdheide/review-plugins
-/plugin install codex@review-plugins
+/plugin marketplace add koenvdheide/agent-tools
+/plugin install codex@agent-tools
 ```
 
-Or add this repo directly as a single-plugin marketplace:
-
-```text
-/plugin marketplace add koenvdheide/codex-skill
-/plugin install codex@codex-skill
-```
-
-Refresh later with `/plugin marketplace update review-plugins` (or `codex-skill` if installed directly).
+Refresh later with `/plugin marketplace update agent-tools`.
 
 ## Usage
 
