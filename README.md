@@ -10,6 +10,12 @@ Gives Claude Code a structured way to delegate analysis tasks to Codex — brain
 
 Brainstorm, Red-team, Debug, Plan Review, Diff Review, Spec Extraction, Rollout/Rollback, Compare/Decide, Test Gaps, Explain, Post-mortem, Attack Surface, Exhausted Hypotheses.
 
+## Does it actually help?
+
+Across my own Claude Code transcripts (one operator, so an internal audit, not a benchmark): ~450 Codex reviews over 9 projects, ~436 judged in full.
+
+Across that set: ~3 findings each, a ~2.1% false-finding rate, and ~32% that pushed past a local edit into a plan or direction change. In convergence mode (below), ~62% of review chains reached an affirmative verdict in-session. Weakest on subjective style review. Full breakdown and caveats: the [agent-tools README](https://github.com/koenvdheide/agent-tools#what-codex-reviews-add).
+
 ## Session resume
 
 Multi-round iterations on the same artifact (review plan v1 → v2, iterative debugging) can preserve prior Codex context via named sessions:
