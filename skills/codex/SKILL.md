@@ -73,7 +73,15 @@ PROMPT
 - **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec --ephemeral -`
 - **Quoted heredoc**: use `<<'PROMPT'` (prevents ALL expansion — no `$()` inside, but safe)
 
-**Windows sandbox limitation:** On Windows, `-s read-only` blocks ALL shell commands (they route through `powershell.exe` which sandbox rejects). Result: Codex cannot read files in read-only mode on Windows. For modes needing file reading (Debug, Plan Review, Test Gaps, Explain, Rollout/Rollback, Attack Surface), use `--full-auto` instead of `-s read-only`. See Mode-to-Sandbox Table below for correct mapping. Always include in prompt text: `"Use PowerShell-compatible commands (Get-Content, Select-String). Codex's internal shell on Windows is PowerShell, not Git Bash."`
+**Windows sandbox limitation:** On affected Windows installs, sandboxed tool calls under **both** `-s read-only` and `--full-auto` (workspace-write) depend on the helper `codex-windows-sandbox-setup.exe`. If stderr shows `windows sandbox: spawn setup refresh` or OS error 740, the helper failed to launch (Windows returns ERROR_ELEVATION_REQUIRED, likely from installer-detection of the "setup" helper name) and the command dies before PowerShell starts. `--full-auto` is **not** a workaround — it uses the same failing helper. (Reproduced locally; upstream: openai/codex#25362, #23965.)
+
+What works on affected installs:
+
+- **For prompt-complete modes (red-team, diff-review, compare-decide, etc.), embed the needed file contents in the prompt and run `-s read-only`** (preferred — zero config, no backend change). Note: piping a prompt that merely tells Codex to go *inspect* the repo still fails — the file contents themselves must be in the prompt. This is why the read-only modes work: their content is already supplied.
+- **When Codex must inspect files itself (Debug, Plan Review, Test Gaps, Explain, Attack Surface, Exhausted Hypotheses), prefer the unelevated sandbox backend over RUNASINVOKER or danger-full-access:** add `-c 'windows.sandbox="unelevated"'` to that invocation (correct as a standalone Git Bash/PowerShell argument; re-quote if embedding inside an already single-quoted string). Verified on one affected Win11 install (codex 0.136.0): under `-s read-only`, file reads worked and a write probe was blocked by policy; under `--full-auto`, an in-workspace write landed and a probe write to the user profile was denied. Limits: the unelevated backend cannot enforce deny-read rules or split writable-root sets, so do not use it for runs that depend on those — reads are not isolated beyond what the OS account allows. Prefer the per-run flag; persist `[windows] sandbox = "unelevated"` in `~/.codex/config.toml` only after a smoke test on the target machine or explicit user choice. If Codex rejects the key or still logs `windows sandbox: spawn setup refresh`, treat the workaround as unavailable and fall back to embedded contents or a disposable environment.
+- Last resorts: a user-applied `RUNASINVOKER` AppCompatFlags workaround for the helper is described in openai/codex#25362 (do not apply registry changes automatically — it also breaks on codex updates since it keys on the exact exe path). Use `-s danger-full-access` only after explicit current-run user approval, preferably in a throwaway checkout or VM, because it removes sandboxing entirely: Codex can read, write, or delete anything the current OS account can access.
+
+Keep including in prompts: `"Use PowerShell-compatible commands (Get-Content, Select-String). Codex's internal shell on Windows is PowerShell, not Git Bash."`
 
 ### Key Flags
 
@@ -118,16 +126,18 @@ codex exec review "Focus on security"    # Custom review instructions
 | Attack Surface | `--full-auto -C "$(pwd)"` | Needs to read the target codebase/config to find vectors |
 | Exhausted Hypotheses | `--full-auto -C "$(pwd)"` | Needs to read codebase + pipeline context |
 
+This mapping is the default for non-Windows and for Windows installs with a working sandbox helper. **Windows caveat:** on affected installs (stderr shows `windows sandbox: spawn setup refresh`), the `--full-auto` rows fail the same as read-only — add `-c 'windows.sandbox="unelevated"'` to the invocation, or embed the needed file contents in the prompt and use `-s read-only`. See the Windows sandbox limitation above.
+
 ### Execution Rules
 
 - Set generous Bash timeout, or omit when using `run_in_background: true`
 - Use `run_in_background: true` so user is not blocked waiting
-- **Always use `-o <temp>/codex-<descriptive-slug>.txt`** to write final analysis to clean file, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` for the `-o` path on Windows — Codex (and Bash in Git Bash context) resolves it to `%TEMP%` and the write succeeds, but Claude's Read tool treats the path literally and fails with `File does not exist` when you try to read the output back. Using `c:/tmp/...` on Windows makes both Codex's write and Claude's Read resolve to the same Windows-native location. Separates output from shell noise. Read the `-o` file for analysis, not the background task output file.
+- **Always use `-o <temp>/codex-<descriptive-slug>.txt`** to write final analysis to clean file, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` for the `-o` path on Windows — Bash in Git Bash resolves it to `%TEMP%` (the `-o` path is translated by Git Bash before Codex receives it) and the write succeeds, but Claude's Read tool treats the path literally and fails with `File does not exist` when you try to read the output back. Using `c:/tmp/...` on Windows makes both Codex's write and Claude's Read resolve to the same Windows-native location. Separates output from shell noise. Read the `-o` file for analysis, not the background task output file.
 - When running in background, also use `2>&1` to capture stderr — background output file serves as debug log if `-o` file is empty or missing
 - Add `--skip-git-repo-check` when running outside a git repository
-- **Cleanup:** after reading `-o` file, delete it (`rm -f /tmp/codex-<slug>.txt`). Temp files accumulate otherwise.
+- **Cleanup:** after reading `-o` file, delete it (`rm -f <temp>/codex-<slug>.txt`, where `<temp>` is the same `c:/tmp` (Windows) / `/tmp` (Linux/macOS) location used for the `-o` write above). Temp files accumulate otherwise.
 - **Wait for completion:** NEVER read or delete `-o` file until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Codex finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
-- **Re-launch safety:** if re-launching a Codex invocation, use a DIFFERENT output slug (e.g., `/tmp/codex-redteam-auth-v2.txt`). Never reuse `-o` path of still-running or recently-launched invocation — two processes will collide on output file.
+- **Re-launch safety:** if re-launching a Codex invocation, use a DIFFERENT output slug (e.g., `<temp>/codex-redteam-auth-v2.txt`). Never reuse `-o` path of still-running or recently-launched invocation — two processes will collide on output file.
 - **Chase down all output:** if `-o` file is empty but task completed successfully, check background task output file for actual analysis or paths where Codex wrote results. Never skip or dismiss review output because it ended up somewhere unexpected.
 - **Passing `-o` paths to subagents:** subagents launched via Task/Agent run in an isolated tool environment with the same `/tmp/` blind spot as the main-session Read tool on Windows — they do NOT resolve Git Bash's `/tmp/` to `C:\Users\<user>\AppData\Local\Temp\`. If you followed the Windows rule above and wrote `-o c:/tmp/codex-<slug>.txt`, subagents resolve it natively with no conversion needed — this is the preferred path. For legacy `/tmp/...` outputs (pre-fix invocations or Linux/macOS), two fallback patterns: (1) **inline content** — `cat /tmp/codex-<slug>.txt` in the parent shell and paste the output directly into the subagent prompt; works on every platform; preferred for outputs ≤ ~50KB. (2) **convert path** — on Windows + Git Bash, pass `$(cygpath -w /tmp/codex-<slug>.txt)` which yields `C:\Users\...\Temp\codex-<slug>.txt`, resolved natively by the subagent's Read tool.
 
@@ -200,6 +210,9 @@ Do not agree just to be agreeable."
 Ready-made patterns for common workflows:
 
 ```bash
+# -o paths below use /tmp (Linux/macOS); on Windows use c:/tmp instead, per the
+# <temp> convention in Execution Rules (Claude's Read tool can't resolve /tmp on Windows).
+
 # Review staged changes adversarially
 codex exec --ephemeral -s read-only -o /tmp/codex-red-team.txt - <<PROMPT
 Mode: red-team
@@ -258,6 +271,8 @@ These combinations are errors — hard-fail with a message before invoking Codex
 | `--artifact` + `list` or `delete` | "--artifact is not valid with list or delete." |
 
 ### Session Workflow
+
+The `-o /tmp/codex-slug.txt` paths in the snippets below are the Linux/macOS form. On Windows, write to `c:/tmp/codex-slug.txt` instead, per the `<temp>` convention in Execution Rules — Claude's Read tool resolves a literal `/tmp/...` path and fails on Windows.
 
 **Source the session manager before any session operation:**
 ```bash
@@ -490,6 +505,7 @@ Do NOT do these when prompting Codex:
 | ------- | ------------ | --- |
 | Hangs indefinitely | Outside a git repo or waiting for approval | Add `--skip-git-repo-check`; if approval prompts are the cause, check your sandbox setting |
 | `-o` file empty or missing | Codex failed before producing output | Check the background task output file (debug log) for shell errors or sandbox failures |
+| `windows sandbox: spawn setup refresh` in the debug log | The elevated Windows sandbox helper failed to launch (OS error 740) — affects both read-only and `--full-auto` | Usually non-fatal for prompt-complete modes (red-team, diff-review, compare-decide): read the `-o` file first, and do not retry on these log lines alone. Treat the run as degraded if the `-o` file is empty, says required files could not be inspected, or the prompt did not contain the content Codex needed. If file access is required, rerun with `-c 'windows.sandbox="unelevated"'` (see Windows sandbox limitation). |
 | Background task output empty or contains only shell noise | Normal when using `-o` | The `-o` file has the clean analysis; the background output contains stderr/shell routing noise and serves as a debug log |
 | Model not available | Account doesn't support that model | Drop the `-m` flag to use the default model |
 | Stdin not reaching Codex | Prompt argument combined with stdin | Use `codex exec -` for stdin OR pass prompt as argument, not both |
