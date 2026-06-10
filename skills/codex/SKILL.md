@@ -122,12 +122,12 @@ codex exec review "Focus on security"    # Custom review instructions
 
 - Set generous Bash timeout, or omit when using `run_in_background: true`
 - Use `run_in_background: true` so user is not blocked waiting
-- **Always use `-o <temp>/codex-<descriptive-slug>.txt`** to write final analysis to clean file, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` for the `-o` path on Windows — Codex (and Bash in Git Bash context) resolves it to `%TEMP%` and the write succeeds, but Claude's Read tool treats the path literally and fails with `File does not exist` when you try to read the output back. Using `c:/tmp/...` on Windows makes both Codex's write and Claude's Read resolve to the same Windows-native location. Separates output from shell noise. Read the `-o` file for analysis, not the background task output file.
+- **Always use `-o <temp>/codex-<descriptive-slug>.txt`** to write final analysis to clean file, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` for the `-o` path on Windows — Bash in Git Bash resolves it to `%TEMP%` (the `-o` path is translated by Git Bash before Codex receives it) and the write succeeds, but Claude's Read tool treats the path literally and fails with `File does not exist` when you try to read the output back. Using `c:/tmp/...` on Windows makes both Codex's write and Claude's Read resolve to the same Windows-native location. Separates output from shell noise. Read the `-o` file for analysis, not the background task output file.
 - When running in background, also use `2>&1` to capture stderr — background output file serves as debug log if `-o` file is empty or missing
 - Add `--skip-git-repo-check` when running outside a git repository
-- **Cleanup:** after reading `-o` file, delete it (`rm -f /tmp/codex-<slug>.txt`). Temp files accumulate otherwise.
+- **Cleanup:** after reading `-o` file, delete it (`rm -f <temp>/codex-<slug>.txt`, where `<temp>` is the same `c:/tmp` (Windows) / `/tmp` (Linux/macOS) location used for the `-o` write above). Temp files accumulate otherwise.
 - **Wait for completion:** NEVER read or delete `-o` file until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Codex finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
-- **Re-launch safety:** if re-launching a Codex invocation, use a DIFFERENT output slug (e.g., `/tmp/codex-redteam-auth-v2.txt`). Never reuse `-o` path of still-running or recently-launched invocation — two processes will collide on output file.
+- **Re-launch safety:** if re-launching a Codex invocation, use a DIFFERENT output slug (e.g., `<temp>/codex-redteam-auth-v2.txt`). Never reuse `-o` path of still-running or recently-launched invocation — two processes will collide on output file.
 - **Chase down all output:** if `-o` file is empty but task completed successfully, check background task output file for actual analysis or paths where Codex wrote results. Never skip or dismiss review output because it ended up somewhere unexpected.
 - **Passing `-o` paths to subagents:** subagents launched via Task/Agent run in an isolated tool environment with the same `/tmp/` blind spot as the main-session Read tool on Windows — they do NOT resolve Git Bash's `/tmp/` to `C:\Users\<user>\AppData\Local\Temp\`. If you followed the Windows rule above and wrote `-o c:/tmp/codex-<slug>.txt`, subagents resolve it natively with no conversion needed — this is the preferred path. For legacy `/tmp/...` outputs (pre-fix invocations or Linux/macOS), two fallback patterns: (1) **inline content** — `cat /tmp/codex-<slug>.txt` in the parent shell and paste the output directly into the subagent prompt; works on every platform; preferred for outputs ≤ ~50KB. (2) **convert path** — on Windows + Git Bash, pass `$(cygpath -w /tmp/codex-<slug>.txt)` which yields `C:\Users\...\Temp\codex-<slug>.txt`, resolved natively by the subagent's Read tool.
 
@@ -200,6 +200,9 @@ Do not agree just to be agreeable."
 Ready-made patterns for common workflows:
 
 ```bash
+# -o paths below use /tmp (Linux/macOS); on Windows use c:/tmp instead, per the
+# <temp> convention in Execution Rules (Claude's Read tool can't resolve /tmp on Windows).
+
 # Review staged changes adversarially
 codex exec --ephemeral -s read-only -o /tmp/codex-red-team.txt - <<PROMPT
 Mode: red-team
@@ -258,6 +261,8 @@ These combinations are errors — hard-fail with a message before invoking Codex
 | `--artifact` + `list` or `delete` | "--artifact is not valid with list or delete." |
 
 ### Session Workflow
+
+The `-o /tmp/codex-slug.txt` paths in the snippets below are the Linux/macOS form. On Windows, write to `c:/tmp/codex-slug.txt` instead, per the `<temp>` convention in Execution Rules — Claude's Read tool resolves a literal `/tmp/...` path and fails on Windows.
 
 **Source the session manager before any session operation:**
 ```bash
