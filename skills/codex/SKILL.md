@@ -495,6 +495,7 @@ Do NOT do these when prompting Codex:
 | ------- | ------------ | --- |
 | Hangs indefinitely | Outside a git repo or waiting for approval | Add `--skip-git-repo-check`; if approval prompts are the cause, check your sandbox setting |
 | `-o` file empty or missing | Codex failed before producing output | Check the background task output file (debug log) for shell errors or sandbox failures |
+| `windows sandbox: spawn setup refresh` in the debug log | In read-only mode on Windows, Codex tried a shell command and the sandbox blocked it (read-only routes shell through `powershell.exe`) | Usually non-fatal for prompt-complete modes (red-team, diff-review, compare-decide): read the `-o` file first, and do not retry on these log lines alone. Treat the run as degraded if the `-o` file is empty, says required files could not be inspected, or the prompt did not contain the content Codex needed. If file access is required, rerun with `--full-auto` (see Mode-to-Sandbox Table). |
 | Background task output empty or contains only shell noise | Normal when using `-o` | The `-o` file has the clean analysis; the background output contains stderr/shell routing noise and serves as a debug log |
 | Model not available | Account doesn't support that model | Drop the `-m` flag to use the default model |
 | Stdin not reaching Codex | Prompt argument combined with stdin | Use `codex exec -` for stdin OR pass prompt as argument, not both |
