@@ -73,7 +73,14 @@ PROMPT
 - **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec --ephemeral -`
 - **Quoted heredoc**: use `<<'PROMPT'` (prevents ALL expansion — no `$()` inside, but safe)
 
-**Windows sandbox limitation:** On Windows, `-s read-only` blocks ALL shell commands (they route through `powershell.exe` which sandbox rejects). Result: Codex cannot read files in read-only mode on Windows. For modes needing file reading (Debug, Plan Review, Test Gaps, Explain, Rollout/Rollback, Attack Surface), use `--full-auto` instead of `-s read-only`. See Mode-to-Sandbox Table below for correct mapping. Always include in prompt text: `"Use PowerShell-compatible commands (Get-Content, Select-String). Codex's internal shell on Windows is PowerShell, not Git Bash."`
+**Windows sandbox limitation:** On affected Windows installs, sandboxed tool calls under **both** `-s read-only` and `--full-auto` (workspace-write) depend on the helper `codex-windows-sandbox-setup.exe`. If stderr shows `windows sandbox: spawn setup refresh` or OS error 740, the helper failed to launch (Windows returns ERROR_ELEVATION_REQUIRED, likely from installer-detection of the "setup" helper name) and the command dies before PowerShell starts. `--full-auto` is **not** a workaround — it uses the same failing helper. (Reproduced locally; upstream: openai/codex#25362, #23965.)
+
+What works on affected installs:
+
+- **Embed the needed file contents in the prompt and run `-s read-only`**, instructing Codex to answer from the supplied content (preferred). The helper never spawns. Note: piping a prompt that merely tells Codex to go *inspect* the repo still fails — the file contents themselves must be in the prompt. This is why the read-only modes (red-team, diff-review, etc.) work: their content is already supplied.
+- If Codex must inspect the repo itself (Attack Surface, Exhausted Hypotheses): use a fixed helper or a disposable environment. A user-applied `RUNASINVOKER` AppCompatFlags workaround for the helper is described in openai/codex#25362 (do not apply registry changes automatically). Use `-s danger-full-access` only after explicit current-run user approval, preferably in a throwaway checkout or VM, because it removes sandboxing entirely: Codex can read, write, or delete anything the current OS account can access.
+
+Keep including in prompts: `"Use PowerShell-compatible commands (Get-Content, Select-String). Codex's internal shell on Windows is PowerShell, not Git Bash."`
 
 ### Key Flags
 
@@ -117,6 +124,8 @@ codex exec review "Focus on security"    # Custom review instructions
 | Post-mortem | `-s read-only` | Logs/traces are provided in the prompt |
 | Attack Surface | `--full-auto -C "$(pwd)"` | Needs to read the target codebase/config to find vectors |
 | Exhausted Hypotheses | `--full-auto -C "$(pwd)"` | Needs to read codebase + pipeline context |
+
+This mapping is the default for non-Windows and for Windows installs with a working sandbox helper. **Windows caveat:** on affected installs (stderr shows `windows sandbox: spawn setup refresh`), the `--full-auto` rows fail the same as read-only — embed the needed file contents in the prompt and use `-s read-only` instead. See the Windows sandbox limitation above.
 
 ### Execution Rules
 
