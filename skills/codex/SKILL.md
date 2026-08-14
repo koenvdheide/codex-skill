@@ -18,6 +18,7 @@ description: >-
 
 - **Exploring design space** — want alternatives before committing → **Brainstorm**
 - **Have a plan or design** — want weaknesses flagged (failure modes + over-engineering + missed simplifications) before investing implementation time → **Red-team**
+- **Change feels heavier than the problem it solves** — new abstraction, config surface, extra layer, or process step you suspect does not earn its keep → **Red-team**, with the question aimed at what to cut
 - **Bug where local reasoning is stuck** — obvious hypotheses ruled out, OR unfamiliar stack where causes/instrumentation/repro are non-obvious → **Debug**
 - **Plan spans multiple subsystems or has non-trivial step ordering** — want sequencing, gap, rollback review → **Plan Review**
 - **Have a diff or report** — want factual claims verified, regressions found, or mismatch with the ticket/spec caught (prose optional) → **Diff Review**
@@ -161,19 +162,21 @@ Return:
 
 Be direct and concrete. If evidence is insufficient, say exactly what is missing.
 
+Simplicity bar: prefer deletion, inlining, or code that already exists. For any recommendation that adds a layer, wrapper, config knob, flag, interface, or file, name the reachable failure or the stated requirement that the smaller option cannot cover, and drop the recommendation if you cannot. Do not propose abstractions with a single caller or a single implementation, or generality for requirements nobody has stated. Keep checks at trust and system boundaries. If the artifact is already heavier than its stated scope, say that first.
+
 Response style: compress prose. Drop fillers, hedges, connectives unless load-bearing. Prefer short active sentences. Keep verbatim: code blocks, diffs, file:line citations, log entries, numbers, names, paths, quoted context, and tables (headers, cells, and structure). Never compress code. If compression would obscure a finding, write normal prose.
 ```
 
 **Smallest useful artifact rule**: prefer the smallest useful artifact — only include what Codex needs to form a judgment.
 
-Omit empty sections rather than forcing every field.
+Omit empty sections rather than forcing every field. The simplicity bar is the exception: send it in every prompt, in every mode, and trim other fields before it. A review left to its own defaults answers with additions (more validation, more layers, more configuration, more phases), which is the bias the paragraph cancels.
 
 ### Mode-Specific Additions
 
 Append one of these to the base template:
 
-- **Brainstorm**: "Generate 3-5 alternatives with tradeoffs. End with a recommendation and why."
-- **Red-team**: "Find weaknesses. Structure response under two explicit headings:
+- **Brainstorm**: "Generate 3-5 alternatives with tradeoffs. Include at least one option that solves the problem with less machinery than the current approach. End with a recommendation and why."
+- **Red-team**: "Find weaknesses. Structure response under two explicit headings, each given equal scrutiny (their lengths can differ):
 
 ## Breakage
 Failure modes, edge cases, wrong assumptions. What could break. Attack assumptions. Give the strongest counterargument.
@@ -196,19 +199,29 @@ Do NOT flag as Breakage:
 - "could in theory fail" without naming the caller, input, and concrete failure
 - missing retries/fallbacks only for deterministic in-process work; I/O, scheduling, and cross-process effects can fail operationally
 
-Prefer 'no finding' over a speculative finding. If a finding would cause the user to ADD defensive code, also ask whether the same defect could be prevented by removing code instead.
+Prefer 'no finding' over a speculative finding. Every fix you propose must be the smallest one that closes the hole. Where the fix would ADD defensive code, first ask whether removing code prevents the same defect; where it would add a layer, flag, or abstraction, say what the one-line version costs and why it is insufficient.
 
 ## Simplifications
-Over-engineering (unnecessary abstractions, dead config, layers that don't earn their keep) and missed reductions (what could be flatter, fewer, smaller). For each: what to cut/merge/flatten, why safe, expected impact. Do NOT strip defensive code at system boundaries, WHY comments, or anything whose removal sacrifices clarity for brevity.
+Over-engineering and missed reductions. Hunt for:
+- abstractions, interfaces, factories, registries, or base classes with a single caller or a single implementation
+- wrappers and indirection that only forward arguments
+- configuration, flags, and options nobody sets, and defaults nobody overrides
+- generality built for requirements that are not stated anywhere
+- validation, error taxonomies, or retries around inputs the call path or the type system already constrains
+- caching, bookkeeping, or duplicated state that recomputation would make unnecessary
+- ceremony around the change: scaffolding files, docs restating the code, tests asserting mocks or framework behavior
+- parallel copies of one fact (constants, schemas, docs) where everything could read one source
 
-Do not agree just to be agreeable."
+For each: what to cut, merge, or flatten, why that is safe, expected impact. Biggest cut first. If the design is sound but heavier than the problem it solves, say so as the verdict, even when Breakage is empty. If you find nothing to cut, write 'nothing to cut' plus one sentence of why, and do not pad the section. Do NOT strip defensive code at system boundaries, WHY comments, or anything whose removal sacrifices clarity for brevity.
+
+Do not agree just to be agreeable. Do not pad either heading to look balanced."
 - **Debug**: "Rank hypotheses by likelihood. Suggest the cheapest diagnostic step for each. Focus on hypotheses I am likely to have missed."
-- **Plan Review**: "Find missing steps, sequencing issues, rollback gaps, and operational risks. Cite file names and line numbers when pointing out issues."
-- **Diff Review**: "For each claim, verify from code or docs. Flag assumptions stated as facts. Check for stale information. Include a blast-radius note: touched surfaces, downstream callers, and any migration or test surface the diff pulls into scope."
-- **Spec Extraction**: "Extract invariants, edge cases, non-goals, and a test checklist. Output a concrete acceptance criteria list, not prose."
-- **Rollout/Rollback**: "Propose a phased rollout, observability checks, feature-flag strategy, and rollback plan. Identify the point of no return. Map the blast radius up front: touched surfaces, downstream callers, migrations, and operational impact."
-- **Compare/Decide**: "Evaluate each option against the stated constraints. For each, list strengths, weaknesses, and hidden risks. Pick one and explain why."
-- **Test Gaps**: "Identify untested edge cases, missing error paths, and boundary conditions. Output a concrete test checklist, not general advice. Map the blast radius first — touched functions, downstream callers, and the test surface that should cover them — so the checklist reaches beyond the directly changed code."
+- **Plan Review**: "Find missing steps, sequencing issues, rollback gaps, and operational risks. Also flag steps that could be dropped, merged, or handled by something the codebase already does. Cite file names and line numbers when pointing out issues."
+- **Diff Review**: "For each claim, verify from code or docs. Flag assumptions stated as facts. Check for stale information. Flag machinery the diff adds that its stated goal does not require. Include a blast-radius note: touched surfaces, downstream callers, and any migration or test surface the diff pulls into scope."
+- **Spec Extraction**: "Extract invariants, edge cases, non-goals, and a test checklist. Output a concrete acceptance criteria list, not prose. Mark which criteria the source states and which you inferred."
+- **Rollout/Rollback**: "Start from the simplest safe rollout and say whether a straight deploy covers this one. Add a phase, feature flag, or observability check only where you can name the failure it catches that a straight deploy would not. Give the rollback plan and identify the point of no return. Map the blast radius up front: touched surfaces, downstream callers, migrations, and operational impact."
+- **Compare/Decide**: "Evaluate each option against the stated constraints. For each, list strengths, weaknesses, and hidden risks. Add the smallest option that still meets the constraints, even if nobody listed it. Pick one and explain why."
+- **Test Gaps**: "Identify untested edge cases, missing error paths, and boundary conditions. Output a concrete test checklist, not general advice. Leave out tests that would only assert mock behavior or invariants the types already guarantee. Map the blast radius first — touched functions, downstream callers, and the test surface that should cover them — so the checklist reaches beyond the directly changed code."
 - **Explain**: "Read the code and explain what it does, why it's structured this way, and what the non-obvious parts are. Flag anything that looks like a bug or anti-pattern."
 - **Post-mortem**: "Analyze the timeline, identify the root cause, distinguish contributing factors from the trigger, and suggest preventive measures. Cite specific log entries as evidence."
 - **Attack Surface**: "Identify overlooked attack vectors, underexplored entry points, and non-obvious vulnerability classes for this target. Consider logic flaws, trust boundaries, race conditions, and chained weaknesses — not just OWASP top 10. Prioritize by likelihood and impact. For each finding, note the blast radius: the tenant isolation broken and the data or actions exposed."
@@ -229,6 +242,7 @@ Question: Find the most likely regressions in this diff.
 Context:
 $(git diff --staged)
 Return: top 3 risks, the invariant each threatens, and missing tests.
+Simplicity bar: prefer deletion or inlining; for any addition, name the failure the smaller option cannot cover.
 PROMPT
 
 # Cluster test failures by root cause
@@ -238,6 +252,7 @@ Question: Cluster these failures by likely root cause.
 Context:
 $(cargo test 2>&1)
 Return: failure clusters, most likely shared cause per cluster, which single test to isolate first.
+Simplicity bar: prefer deletion or inlining; for any addition, name the failure the smaller option cannot cover.
 PROMPT
 
 ```
@@ -461,6 +476,7 @@ Some review tasks converge rather than conclude. When reviewing an evolving arti
 - **Never relay raw Codex output** to user. Extract disagreements, key risks, best next step.
 - If Codex disagrees with your approach, present **both perspectives** and let user decide.
 - If Codex finds clear errors, fix them before presenting. Flag debatable ones for user.
+- **Weigh add-machinery findings before relaying.** For any finding that adds code, config, or process, state the smallest version of the fix and whether removing something closes the same hole. Attribute any smaller alternative you worked out yourself to yourself — the reviewer did not say it, and the fidelity rules below forbid presenting it as though it did. Present a finding whose only payoff is ceremony as optional, and label it as such. If a review comes back with additions and no cuts at all, say so; a finding count is not a verdict.
 - Structure alternatives as comparison table when presenting multiple options.
 - **Retry rule**: if Codex returns generic advice, rerun with narrower question and better-scoped artifact. Do not retry more than once.
 
