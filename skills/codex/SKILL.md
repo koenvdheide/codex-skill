@@ -58,10 +58,10 @@ When multiple bullets match a single prompt:
 
 ```bash
 # Short prompt as argument
-codex exec --ephemeral "<prompt>"
+codex exec --ephemeral -s read-only "<prompt>"
 
 # Long prompt via stdin (preferred for multi-line)
-codex exec --ephemeral -s read-only - <<'PROMPT'
+codex exec --ephemeral -s read-only <<'PROMPT'
 Your long prompt here...
 PROMPT
 ```
@@ -70,11 +70,13 @@ A prompt argument and piped stdin now combine: both reach Codex, so a piped arti
 
 **Backtick safety**: Never use `$(cat file)` inside unquoted heredocs (`<<PROMPT`) when file may contain backticks (markdown, code) or the delimiter word. Bash interprets backticks as command substitution and delimiter words as heredoc terminators → "unexpected EOF" errors. Safe patterns:
 
-- **Pipe pattern** (preferred): `cat file | codex exec --ephemeral -s read-only -`
-- **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec --ephemeral -`
+- **Pipe pattern** (preferred): `cat file | codex exec --ephemeral -s read-only`
+- **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec --ephemeral -s read-only`
 - **Quoted heredoc**: use `<<'PROMPT'` (prevents ALL expansion — no `$()` inside, but safe)
 
-**Windows sandbox note:** some older Codex builds could not launch the Windows sandbox helper, so every sandboxed tool call died with `windows sandbox: spawn setup refresh` or OS error 740 before PowerShell started (openai/codex#25362, since closed). The failure no longer reproduces on a current build: file reads under `-s read-only` and an in-workspace write under `-s workspace-write` both succeeded with no such warning. If you do hit those log lines, update the CLI first. On an install you cannot update, embed the needed file contents in the prompt and run `-s read-only`, or add `-c 'windows.sandbox="unelevated"'` for the modes where Codex must inspect files itself (that backend cannot enforce deny-read rules or split writable-root sets, so avoid it for runs that depend on those). Read-only mode can also be stricter than it looks about basic `git` and PowerShell inspection (openai/codex#23965, open).
+**Always pass `-s`.** With no `-s`, `codex exec` runs `workspace-write`, which a review never needs.
+
+**Windows sandbox note:** some older Codex builds could not launch the Windows sandbox helper, so every sandboxed tool call died with `windows sandbox: spawn setup refresh` or OS error 740 before PowerShell started (openai/codex#25362, since closed). The failure no longer reproduces on a current build: file reads under `-s read-only` and an in-workspace write under `-s workspace-write` both succeeded with no such warning. If you do hit those log lines, update the CLI first. On an install you cannot update, embed the needed file contents in the prompt and run `-s read-only`, or add `-c 'windows.sandbox="unelevated"'` for the modes where Codex must inspect files itself (that backend cannot enforce deny-read rules or split writable-root sets, so avoid it for runs that depend on those).
 
 Keep including in prompts: `"Use PowerShell-compatible commands (Get-Content, Select-String). Codex's internal shell on Windows is PowerShell, not Git Bash."`
 
@@ -98,8 +100,6 @@ Leave the model unset so the CLI default and `~/.codex/config.toml` apply, and r
 
 Codex currently defaults to Astra (`gpt-6-astra`). Run Astra at **medium** reasoning effort for now: that is what the local config should carry, and `-c model_reasoning_effort=medium` pins it for one run if the config says otherwise.
 
-If a run dies with a 400 saying the model requires a newer version of Codex, the CLI is behind the model catalog. Update the CLI rather than switching models.
-
 Name the model you used in any summary you present, so the user can tell what produced the analysis.
 
 ### Code Review
@@ -119,19 +119,21 @@ codex exec review "Focus on security"    # Custom review instructions
 | ---- | ------- | --- |
 | Brainstorm | `-s read-only` | No file access needed |
 | Red-team | `-s read-only` | Pure analysis |
-| Debug | `-s workspace-write -C "$(pwd)"` | Needs to read files to diagnose |
-| Plan Review | `-s workspace-write -C "$(pwd)"` | Needs to read codebase to verify assumptions |
-| Diff Review | `-s read-only` | Diff is provided in the prompt |
+| Debug | `-s read-only -C "$(pwd)"` | Needs to read files to diagnose |
+| Plan Review | `-s read-only -C "$(pwd)"` | Needs to read codebase to verify assumptions |
+| Diff Review | `-s read-only -C "$(pwd)"` | Diff in the prompt, repo open so the change is judged against the file around it |
 | Spec Extraction | `-s read-only` | Ticket/code is provided in the prompt |
-| Rollout/Rollback | `-s workspace-write -C "$(pwd)"` | Needs to read codebase to assess operational risk |
+| Rollout/Rollback | `-s read-only -C "$(pwd)"` | Needs to read codebase to assess operational risk |
 | Compare/Decide | `-s read-only` | Options are provided in the prompt |
-| Test Gaps | `-s workspace-write -C "$(pwd)"` | Needs to read the code to find gaps |
-| Explain | `-s workspace-write -C "$(pwd)"` | Needs to read the code to explain it |
+| Test Gaps | `-s read-only -C "$(pwd)"` | Needs to read the code to find gaps |
+| Explain | `-s read-only -C "$(pwd)"` | Needs to read the code to explain it |
 | Post-mortem | `-s read-only` | Logs/traces are provided in the prompt |
-| Attack Surface | `-s workspace-write -C "$(pwd)"` | Needs to read the target codebase/config to find vectors |
-| Exhausted Hypotheses | `-s workspace-write -C "$(pwd)"` | Needs to read codebase + pipeline context |
+| Attack Surface | `-s read-only -C "$(pwd)"` | Needs to read the target codebase/config to find vectors |
+| Exhausted Hypotheses | `-s read-only -C "$(pwd)"` | Needs to read codebase + pipeline context |
 
-**Windows caveat:** if stderr shows `windows sandbox: spawn setup refresh`, sandboxed tool calls fail regardless of the sandbox mode in this table. Prompt-complete modes still answer from what the prompt carries. See the Windows sandbox note above.
+Rows with `-C` let Codex inspect the repository itself; `git log`, `git diff` and file reads all run under `-s read-only`, so none of these modes needs write access. Add `-C "$(pwd)"` to any other row when its material lives in a repo: a reviewer that can only see the excerpt you pasted cannot judge it against the code around it, or find the related problem the excerpt left out.
+
+**Windows caveat:** on an old build that logs `windows sandbox: spawn setup refresh`, every row here breaks. See the Windows sandbox note above.
 
 ### Execution Rules
 
@@ -240,7 +242,7 @@ Ready-made patterns for common workflows:
 # <temp> convention in Execution Rules (Claude's Read tool can't resolve /tmp on Windows).
 
 # Review staged changes adversarially
-codex exec --ephemeral -s read-only -o /tmp/codex-red-team.txt - <<PROMPT
+codex exec --ephemeral -s read-only -o /tmp/codex-red-team.txt <<PROMPT
 Mode: red-team
 Question: Find the most likely regressions in this diff.
 Context:
@@ -250,7 +252,7 @@ Simplicity bar: prefer deletion or inlining; for any addition, name the failure 
 PROMPT
 
 # Cluster test failures by root cause
-codex exec --ephemeral -s read-only -o /tmp/codex-debug.txt - <<PROMPT
+codex exec --ephemeral -s read-only -o /tmp/codex-debug.txt <<PROMPT
 Mode: debug
 Question: Cluster these failures by likely root cause.
 Context:
@@ -310,7 +312,7 @@ smgr_init_dir codex
 
 **Stderr handling:** Session calls redirect stderr to a temp file (`2>"$STDERR_FILE"`) to capture the session ID. This replaces the existing `2>&1` or `2>/dev/null` patterns used in one-shot calls. Do NOT combine `2>"$STDERR_FILE"` with `2>&1` — they are mutually exclusive. One-shot calls (with `--ephemeral`) keep existing stderr handling unchanged.
 
-**Resume sandbox:** `codex exec resume` inherits the original session's sandbox and working directory, and the resume subcommand takes no `-s` flag of its own. Verified by resuming a session created with `-s read-only`: the run header reported `sandbox: read-only` and a write probe was denied. Read the header of a resumed run before assuming anything else.
+**Resume sandbox:** `codex exec resume` inherits the original session's sandbox and working directory, and the resume subcommand takes no `-s` flag of its own.
 
 **Creating a new session (`--new-session <slug>`):**
 ```bash
@@ -368,7 +370,8 @@ trap 'smgr_unlock "$SLUG"' EXIT
 SESSION_ID=$(smgr_lookup "$SLUG")
 
 # 4. Resume codex
-codex exec resume "$SESSION_ID" [flags] -o /tmp/codex-slug.txt [prompt]
+codex exec resume "$SESSION_ID" -o /tmp/codex-slug.txt [prompt]
+# Sandbox and workdir come from the original session; -s is not accepted here.
 # If resume fails with "session not found" → zombie. Hard-fail.
 
 # 5. Update last-used timestamp
