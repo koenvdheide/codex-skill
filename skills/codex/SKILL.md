@@ -109,10 +109,10 @@ Name the model you used in any summary you present, so the user can tell what pr
 Prefer `codex exec review` over `codex review` — supports full flag surface (`-m`, `--json`, `-o`). Top-level `codex review` works but has fewer options:
 
 ```bash
-codex exec review --ephemeral -s read-only --uncommitted < /dev/null  # Review working tree changes
-codex exec review --ephemeral -s read-only --base main < /dev/null    # Review changes against a branch
-codex exec review --ephemeral -s read-only --commit abc123 < /dev/null # Review a specific commit
-codex exec review --ephemeral -s read-only "Focus on security" < /dev/null # Custom review instructions
+codex exec review --ephemeral -s read-only --uncommitted -o c:/tmp/codex-review.txt < /dev/null  # Review working tree changes
+codex exec review --ephemeral -s read-only --base main -o c:/tmp/codex-review.txt < /dev/null    # Review changes against a branch
+codex exec review --ephemeral -s read-only --commit abc123 -o c:/tmp/codex-review.txt < /dev/null # Review a specific commit
+codex exec review --ephemeral -s read-only "Focus on security" -o c:/tmp/codex-review.txt < /dev/null # Custom review instructions
 ```
 
 ### Resuming a Conversation
@@ -132,9 +132,9 @@ Keep that stderr file until the round is validated. A run can print its header, 
 id, then fail with an empty `-o` file, and stderr is the only place saying why. One observed
 cause is a plain account usage limit, reported there and nowhere else.
 
-Resuming keeps the conversation server-side, so a round costs a few hundred tokens against
-roughly 20k for a fresh run, and the model still recalls round 1 without you re-sending it. Send
-the artifact again only when the artifact itself changed.
+Resuming restores the prior context, so the model still recalls round 1 without you re-sending
+it, and the round bills far fewer tokens than a fresh run (493 against roughly 20k in one
+measured pair). Send the artifact again only when the artifact itself changed.
 
 **Resume by UUID, and check the header.** The identifier decides how a miss behaves. An unknown
 UUID fails loudly (`no rollout found for thread id <uuid>`). Anything that does not parse as a
@@ -180,8 +180,8 @@ Rows with `-C` let Codex inspect the repository itself; `git log`, `git diff` an
 
 - Set generous Bash timeout, or omit when using `run_in_background: true`
 - Use `run_in_background: true` so user is not blocked waiting
-- **Always use `-o <temp>/codex-<descriptive-slug>.txt`** to write final analysis to clean file, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` for the `-o` path on Windows — Bash in Git Bash resolves it to `%TEMP%` (the `-o` path is translated by Git Bash before Codex receives it) and the write succeeds, but Claude's Read tool treats the path literally and fails with `File does not exist` when you try to read the output back. Using `c:/tmp/...` on Windows makes both Codex's write and Claude's Read resolve to the same Windows-native location. Separates output from shell noise. Read the `-o` file for analysis, not the background task output file.
-- When running in background, also use `2>&1` to capture stderr — background output file serves as debug log if `-o` file is empty or missing
+- **On any run whose analysis you will read back, use `-o <temp>/codex-<descriptive-slug>.txt`** to write final analysis to clean file, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` for the `-o` path on Windows — Bash in Git Bash resolves it to `%TEMP%` (the `-o` path is translated by Git Bash before Codex receives it) and the write succeeds, but Claude's Read tool treats the path literally and fails with `File does not exist` when you try to read the output back. Using `c:/tmp/...` on Windows makes both Codex's write and Claude's Read resolve to the same Windows-native location. Separates output from shell noise. Read the `-o` file for analysis, not the background task output file.
+- When running in background, also use `2>&1` to capture stderr — background output file serves as debug log if `-o` file is empty or missing. Skip it when stderr is already going to its own file, as in the resume recipe: `2>&1` there would swallow the `session id` line the capture depends on
 - Add `--skip-git-repo-check` when running outside a git repository
 - **Cleanup:** after reading `-o` file, delete it (`rm -f <temp>/codex-<slug>.txt`, where `<temp>` is the same `c:/tmp` (Windows) / `/tmp` (Linux/macOS) location used for the `-o` write above). Temp files accumulate otherwise.
 - **Wait for completion:** NEVER read or delete `-o` file until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Codex finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
@@ -288,7 +288,8 @@ Mode: red-team
 Question: Find the most likely regressions in this diff.
 Context:
 $(git diff --staged)
-Return: top 3 risks, the invariant each threatens, and missing tests.
+Current belief: {your hypothesis, so it can be attacked}
+Return: findings under two headings, Breakage and Simplifications, each given equal scrutiny.
 Simplicity bar: prefer deletion or inlining; for any addition, name the failure the smaller option cannot cover.
 PROMPT
 
