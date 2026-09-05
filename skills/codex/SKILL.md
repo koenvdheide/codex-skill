@@ -36,7 +36,7 @@ description: >-
 - Single-file mechanical edit (typo, rename, one-import change) with no new concepts
 - Answer is already in context
 - Conversation is active back-and-forth, or user indicated urgency — 1–5 min wait would break the flow
-- Already used Codex (or Gemini) for this question this session, OR you're about to fire both on the same prompt — retry narrower prompt, or escalate to user
+- Already used Codex (or Antigravity) for this question this session, OR you're about to fire both on the same prompt — retry narrower prompt, or escalate to user
 - No specific artifact or concrete question — just a topic or area to "think about"
 - Prompt would contain secrets, credentials, or PII
 - Question is about Claude Code internals (hooks, skills, MCP, settings) — `/claude-code-docs` knows, external CLIs don't
@@ -68,11 +68,11 @@ PROMPT
 
 A prompt argument and piped stdin now combine: both reach Codex, so a piped artifact is no longer lost when an argument is also given. Piping remains the safer route for anything long or multi-line, since a shell argument has to survive quoting.
 
-**Backtick safety**: Never use `$(cat file)` inside unquoted heredocs (`<<PROMPT`) when file may contain backticks (markdown, code) or the delimiter word. Bash interprets backticks as command substitution and delimiter words as heredoc terminators → "unexpected EOF" errors. Safe patterns:
+**What an unquoted heredoc expands**: `<<PROMPT` expands `$vars`, `$(...)` and backticks that you *type* in the heredoc source. It does not rescan what a command substitution inserts, so backticks, `$vars` and even a line equal to the delimiter word inside `$(cat file)` output all reach Codex intact. Quote the delimiter (`<<'PROMPT'`) when the prompt you typed contains shell metacharacters you want left alone. Ways to send a long artifact:
 
 - **Pipe pattern** (preferred): `cat file | codex exec --ephemeral -s read-only`
 - **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec --ephemeral -s read-only`
-- **Quoted heredoc**: use `<<'PROMPT'` (prevents ALL expansion — no `$()` inside, but safe)
+- **Quoted heredoc**: `<<'PROMPT'` prevents every expansion, so no `$(...)` interpolation is possible inside it
 
 **Always pass `-s`.** With no `-s`, `codex exec` runs `workspace-write`, which a review never needs.
 
@@ -107,10 +107,10 @@ Name the model you used in any summary you present, so the user can tell what pr
 Prefer `codex exec review` over `codex review` — supports full flag surface (`-m`, `--json`, `-o`). Top-level `codex review` works but has fewer options:
 
 ```bash
-codex exec review --uncommitted          # Review working tree changes
-codex exec review --base main            # Review changes against a branch
-codex exec review --commit abc123        # Review a specific commit
-codex exec review "Focus on security"    # Custom review instructions
+codex exec review -s read-only --uncommitted          # Review working tree changes
+codex exec review -s read-only --base main            # Review changes against a branch
+codex exec review -s read-only --commit abc123        # Review a specific commit
+codex exec review -s read-only "Focus on security"    # Custom review instructions
 ```
 
 ### Mode-to-Sandbox Table
@@ -242,7 +242,7 @@ Ready-made patterns for common workflows:
 # <temp> convention in Execution Rules (Claude's Read tool can't resolve /tmp on Windows).
 
 # Review staged changes adversarially
-codex exec --ephemeral -s read-only -o /tmp/codex-red-team.txt <<PROMPT
+codex exec --ephemeral -s read-only -C "$(pwd)" -o /tmp/codex-red-team.txt <<PROMPT
 Mode: red-team
 Question: Find the most likely regressions in this diff.
 Context:
@@ -252,7 +252,7 @@ Simplicity bar: prefer deletion or inlining; for any addition, name the failure 
 PROMPT
 
 # Cluster test failures by root cause
-codex exec --ephemeral -s read-only -o /tmp/codex-debug.txt <<PROMPT
+codex exec --ephemeral -s read-only -C "$(pwd)" -o /tmp/codex-debug.txt <<PROMPT
 Mode: debug
 Question: Cluster these failures by likely root cause.
 Context:
