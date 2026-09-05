@@ -12,7 +12,7 @@ description: >-
 
 `codex exec` provides independent perspective from a separate AI agent. Runs locally, reads codebase, returns analysis to stdout.
 
-> **Shell prerequisite:** the recipes below use bash features (`/tmp/` paths, `source`, heredocs, `cygpath`). Claude Code ships with bash on every platform (native on Linux/macOS, Git Bash on Windows) so this is usually a non-issue — but if you're running Codex commands from native Windows `cmd` or PowerShell outside Claude Code, adapt the syntax.
+> **Shell prerequisite:** the recipes below use bash features (`/tmp/` paths, heredocs, `cygpath`). Claude Code ships with bash on every platform (native on Linux/macOS, Git Bash on Windows) so this is usually a non-issue — but if you're running Codex commands from native Windows `cmd` or PowerShell outside Claude Code, adapt the syntax.
 
 ## When to Use Codex
 
@@ -58,7 +58,7 @@ When multiple bullets match a single prompt:
 
 ```bash
 # Short prompt as argument
-codex exec --ephemeral -s read-only "<prompt>"
+codex exec --ephemeral -s read-only "<prompt>" < /dev/null
 
 # Long prompt via stdin (preferred for multi-line)
 codex exec --ephemeral -s read-only <<'PROMPT'
@@ -68,13 +68,15 @@ PROMPT
 
 A prompt argument and piped stdin now combine: both reach Codex, so a piped artifact is no longer lost when an argument is also given. Piping remains the safer route for anything long or multi-line, since a shell argument has to survive quoting.
 
+**Close stdin when the prompt is an argument.** Because `codex exec` reads stdin as well, a run whose stdin stays open can block on it and finish having written nothing, leaving an empty `-o` file and `Reading additional input from stdin...` as the only trace. Append `< /dev/null` to any argument-only invocation, background ones especially.
+
 **What an unquoted heredoc expands**: `<<PROMPT` expands `$vars`, `$(...)` and backticks that you *type* in the heredoc source. It does not rescan what a command substitution inserts, so backticks, `$vars` and even a line equal to the delimiter word inside `$(cat file)` output all reach Codex intact. Quote the delimiter (`<<'PROMPT'`) when the prompt you typed contains shell metacharacters you want left alone. Ways to send a long artifact:
 
 - **Pipe pattern** (preferred): `cat file | codex exec --ephemeral -s read-only`
 - **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec --ephemeral -s read-only`
 - **Quoted heredoc**: `<<'PROMPT'` prevents every expansion, so no `$(...)` interpolation is possible inside it
 
-**Always pass `-s`.** With no `-s`, `codex exec` runs `workspace-write`, which a review never needs.
+**Always pass `-s`.** With no `-s`, `codex exec` runs `workspace-write`, which a review never needs. The exception is `codex exec resume`, which inherits the original session's sandbox and rejects `-s` outright.
 
 **Windows sandbox note:** some older Codex builds could not launch the Windows sandbox helper, so every sandboxed tool call died with `windows sandbox: spawn setup refresh` or OS error 740 before PowerShell started (openai/codex#25362, since closed). The failure no longer reproduces on a current build: file reads under `-s read-only` and an in-workspace write under `-s workspace-write` both succeeded with no such warning. If you do hit those log lines, update the CLI first. On an install you cannot update, embed the needed file contents in the prompt and run `-s read-only`, or add `-c 'windows.sandbox="unelevated"'` for the modes where Codex must inspect files itself (that backend cannot enforce deny-read rules or split writable-root sets, so avoid it for runs that depend on those).
 
@@ -107,11 +109,50 @@ Name the model you used in any summary you present, so the user can tell what pr
 Prefer `codex exec review` over `codex review` — supports full flag surface (`-m`, `--json`, `-o`). Top-level `codex review` works but has fewer options:
 
 ```bash
-codex exec review -s read-only --uncommitted          # Review working tree changes
-codex exec review -s read-only --base main            # Review changes against a branch
-codex exec review -s read-only --commit abc123        # Review a specific commit
-codex exec review -s read-only "Focus on security"    # Custom review instructions
+codex exec review --ephemeral -s read-only --uncommitted < /dev/null  # Review working tree changes
+codex exec review --ephemeral -s read-only --base main < /dev/null    # Review changes against a branch
+codex exec review --ephemeral -s read-only --commit abc123 < /dev/null # Review a specific commit
+codex exec review --ephemeral -s read-only "Focus on security" < /dev/null # Custom review instructions
 ```
+
+### Resuming a Conversation
+
+The CLI carries multi-round work by itself, so no wrapper is needed. Capture the id, then resume
+with it:
+
+```bash
+ERR=c:/tmp/codex-<slug>.err
+codex exec -s read-only -C "$(pwd)" -o c:/tmp/codex-<slug>-r1.txt "<round 1 prompt>" 2>"$ERR" < /dev/null
+SID=$(sed -n 's/^session id: //p' "$ERR" | tr -d '\r' | head -1)
+
+codex exec resume "$SID" -o c:/tmp/codex-<slug>-r2.txt "<round 2 prompt>" < /dev/null
+```
+
+Keep that stderr file until the round is validated. A run can print its header, capture a usable
+id, then fail with an empty `-o` file, and stderr is the only place saying why. One observed
+cause is a plain account usage limit, reported there and nowhere else.
+
+Resuming keeps the conversation server-side, so a round costs a few hundred tokens against
+roughly 20k for a fresh run, and the model still recalls round 1 without you re-sending it. Send
+the artifact again only when the artifact itself changed.
+
+**Resume by UUID, and check the header.** The identifier decides how a miss behaves. An unknown
+UUID fails loudly (`no rollout found for thread id <uuid>`). Anything that does not parse as a
+UUID is treated as a thread name, and an unknown name does **not** fail: it silently starts a new
+conversation and answers as if fresh. The tell is the header, which reports a `session id` other
+than the one you asked for, so compare the two before trusting a resumed answer.
+
+Names come from the interactive TUI anyway, so a headless workflow should carry the UUID:
+`-c thread_name=...` on `codex exec` does not make a name resolvable to `resume`.
+
+Two more limits. A resumed run inherits the original session's sandbox and working directory and
+accepts no `-s` of its own. `--last` resumes the most recent session without needing an id, and
+can therefore land in a wider sandbox than the current task wants.
+And `--ephemeral` does not persist a session, so leave it off any run you intend to resume.
+
+For review modes, prefer a fresh one-shot over a resume. Asking a model to attack its own prior
+reasoning is what a resumed review does, and Convergence Mode below carries findings forward in
+the prompt instead.
 
 ### Mode-to-Sandbox Table
 
