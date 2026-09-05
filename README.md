@@ -16,19 +16,6 @@ Across my own Claude Code transcripts (one operator, so an internal audit, not a
 
 Across that set: ~3 findings each, a ~2.1% false-finding rate, and ~32% that pushed past a local edit into a plan or direction change. In convergence mode (below), ~62% of review chains reached an affirmative verdict in-session. Weakest on subjective style review. Full breakdown and caveats: the [agent-tools README](https://github.com/koenvdheide/agent-tools#what-codex-reviews-add).
 
-## Session resume
-
-Multi-round iterations on the same artifact (review plan v1 → v2, iterative debugging) can preserve prior Codex context via named sessions:
-
-```text
-/codex --new-session review-auth   # create a named session
-/codex --session review-auth       # resume it later
-/codex list                        # see all sessions
-/codex delete review-auth          # clean up
-```
-
-Sessions are stored per-worktree under `.claude/.codex-sessions/`. See the Session Management section in `skills/codex/SKILL.md` for the full workflow.
-
 ## Convergence mode (iterative review)
 
 For reviewing artifacts that evolve across multiple revisions — specs, plans, designs — Codex can run in a convergence loop: review → fix → re-review until the reviewer gives an affirmative verdict or you stop. Claude orchestrates the loop with user gates after each round, cites prior findings on each pass so the reviewer can detect drift, and watches for the scope-drift failure mode where each round's "real" findings pull the artifact into a design the user never asked for.
@@ -39,7 +26,7 @@ See the Convergence Mode section in `skills/codex/SKILL.md` for the loop shape (
 
 - [Claude Code](https://claude.ai/code)
 - [Codex CLI](https://github.com/openai/codex) installed and on PATH
-- Bash or Git Bash (the skill's session management uses `source` on a bash script — `skills/codex/session-mgr.sh`)
+- Bash or Git Bash (the skill's recipes use heredocs, pipes and `cygpath`)
 
 ## Optional: `reviewer` subagent
 
