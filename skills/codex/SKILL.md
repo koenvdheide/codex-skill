@@ -146,7 +146,7 @@ Rows with `-C` let Codex inspect the repository itself; `git log`, `git diff` an
 - **Wait for completion:** NEVER read or delete `-o` file until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Codex finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
 - **Re-launch safety:** if re-launching a Codex invocation, use a DIFFERENT output slug (e.g., `<temp>/codex-redteam-auth-v2.txt`). Never reuse `-o` path of still-running or recently-launched invocation — two processes will collide on output file.
 - **Chase down all output:** if `-o` file is empty but task completed successfully, check background task output file for actual analysis or paths where Codex wrote results. Never skip or dismiss review output because it ended up somewhere unexpected.
-- **Passing `-o` paths to subagents:** subagents launched via Task/Agent run in an isolated tool environment with the same `/tmp/` blind spot as the main-session Read tool on Windows — they do NOT resolve Git Bash's `/tmp/` to `C:\Users\<user>\AppData\Local\Temp\`. If you followed the Windows rule above and wrote `-o c:/tmp/codex-<slug>.txt`, subagents resolve it natively with no conversion needed — this is the preferred path. For legacy `/tmp/...` outputs (pre-fix invocations or Linux/macOS), two fallback patterns: (1) **inline content** — `cat /tmp/codex-<slug>.txt` in the parent shell and paste the output directly into the subagent prompt; works on every platform; preferred for outputs ≤ ~50KB. (2) **convert path** — on Windows + Git Bash, pass `$(cygpath -w /tmp/codex-<slug>.txt)` which yields `C:\Users\...\Temp\codex-<slug>.txt`, resolved natively by the subagent's Read tool.
+- **Passing `-o` paths to subagents:** a subagent has the same Windows `/tmp/` blind spot as the main-session Read tool, so follow the `<temp>` rule above and `c:/tmp/codex-<slug>.txt` resolves natively. For a legacy `/tmp/...` output, either inline the content into the subagent prompt (up to ~50KB) or pass `$(cygpath -w /tmp/codex-<slug>.txt)`.
 
 ## Base Prompt Template
 
@@ -248,16 +248,6 @@ Question: Find the most likely regressions in this diff.
 Context:
 $(git diff --staged)
 Return: top 3 risks, the invariant each threatens, and missing tests.
-Simplicity bar: prefer deletion or inlining; for any addition, name the failure the smaller option cannot cover.
-PROMPT
-
-# Cluster test failures by root cause
-codex exec --ephemeral -s read-only -C "$(pwd)" -o /tmp/codex-debug.txt <<PROMPT
-Mode: debug
-Question: Cluster these failures by likely root cause.
-Context:
-$(cargo test 2>&1)
-Return: failure clusters, most likely shared cause per cluster, which single test to isolate first.
 Simplicity bar: prefer deletion or inlining; for any addition, name the failure the smaller option cannot cover.
 PROMPT
 
@@ -511,11 +501,11 @@ Codex sometimes cites `file:line` inside an explanatory sentence rather than in 
 
 ### Mandatory QA for high-stakes modes
 
-After summarizing Codex output for `plan-review`, `red-team`, `diff-review`, `exhausted-hypotheses`, or `attack-surface` modes, run the reviewer agent on your summary **before presenting it to the user**. These modes produce the longest outputs and the highest-consequence summaries. Three of three session-observed summarization errors occurred in these modes. The QA step is non-optional for them.
+After summarizing Codex output for `plan-review`, `red-team`, `diff-review`, `exhausted-hypotheses`, or `attack-surface` modes, run the reviewer agent on your summary **before presenting it to the user**. These modes produce the longest outputs and the highest-consequence summaries, and they are where summarization errors concentrate. The QA step is non-optional for them.
 
 Low-stakes modes (`brainstorm`, `spec-extraction`, `explain`, `test-gaps`, `compare-decide`, `debug`, `post-mortem`, `rollout-rollback`) do not require the QA step — rely on the three rules above.
 
-**Short-output exception:** If the Codex output is under ~200 words AND contains no bullet lists, numbered findings, or file:line citations, the mandatory QA step can be skipped. Short prose responses leave little room for strength amplification or undercounts — the three failure modes all require enough surface area to happen. A one-paragraph Codex verdict does not need a reviewer pass.
+**Short-output exception:** If the Codex output is under ~200 words AND contains no bullet lists, numbered findings, or file:line citations, the mandatory QA step can be skipped. The three failure modes all need more surface area than that to happen.
 
 **Reviewer-unavailable fallback:** If the reviewer agent is unavailable (tool failure, subagent budget exhausted), fall back to self-review against the three rules: re-read the source Codex output, quote every evaluative verb verbatim in the summary, and count inline citations in prose as well as in bullets. Flag the fallback explicitly in the presented summary: *"(self-reviewed against fidelity rules — no reviewer agent pass)"*.
 
