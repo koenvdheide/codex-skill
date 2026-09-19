@@ -383,13 +383,11 @@ Codex sometimes cites `file:line` inside an explanatory sentence rather than in 
 
 ### Mandatory QA for high-stakes modes
 
-After summarizing Codex output for `plan-review`, `red-team`, `diff-review`, `exhausted-hypotheses`, or `attack-surface` modes, run the reviewer agent on your summary **before presenting it to the user**. These modes produce the longest outputs and the highest-consequence summaries, and they are where summarization errors concentrate. The QA step is non-optional for them.
+After summarizing Codex output for `plan-review`, `red-team`, `diff-review`, `exhausted-hypotheses`, or `attack-surface` modes, re-read your summary against the three rules above **before presenting it to the user**: re-read the source Codex output, quote every evaluative verb verbatim, add no explanatory bridge the source does not contain, and count inline citations in prose as well as in bullets. These modes produce the longest outputs and the highest-consequence summaries, and they are where summarization errors concentrate. The QA step is non-optional for them.
 
 Low-stakes modes (`brainstorm`, `spec-extraction`, `explain`, `test-gaps`, `compare-decide`, `debug`, `post-mortem`, `rollout-rollback`) do not require the QA step — rely on the three rules above.
 
 **Short-output exception:** If the Codex output is under ~200 words AND contains no bullet lists, numbered findings, or file:line citations, the mandatory QA step can be skipped. The three failure modes all need more surface area than that to happen.
-
-**Reviewer-unavailable fallback:** If the reviewer agent is unavailable (tool failure, subagent budget exhausted), fall back to self-review against the three rules: re-read the source Codex output, quote every evaluative verb verbatim in the summary, and count inline citations in prose as well as in bullets. Flag the fallback explicitly in the presented summary: *"(self-reviewed against fidelity rules — no reviewer agent pass)"*.
 
 The QA check runs against the source Codex output and your summary, flagging strength amplification, fabricated bridges, undercounts, and line-number hallucinations. Errors caught in QA must be corrected in the summary before presentation, not annotated afterward.
 
