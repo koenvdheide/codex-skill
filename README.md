@@ -12,7 +12,7 @@ Brainstorm, Red-team, Debug, Plan Review, Diff Review, Spec Extraction, Rollout/
 
 ## Does it actually help?
 
-Across ~450 Codex reviews in my own Claude Code transcripts, ~32% pushed past a local edit into a plan or direction change. Weakest on subjective style review. The full measurements, the method behind them and the caveats live in the [agent-tools README](https://github.com/koenvdheide/agent-tools#what-codex-reviews-add).
+Codex review catches design-level problems, and its findings can push past a local edit into a plan or direction change. Weakest on subjective style review. What it catches and where it misfires: the [agent-tools README](https://github.com/koenvdheide/agent-tools#what-codex-reviews-add).
 
 ## Prerequisites
 
