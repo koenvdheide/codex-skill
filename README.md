@@ -14,12 +14,6 @@ Brainstorm, Red-team, Debug, Plan Review, Diff Review, Spec Extraction, Rollout/
 
 Across ~450 Codex reviews in my own Claude Code transcripts, ~32% pushed past a local edit into a plan or direction change. Weakest on subjective style review. The full measurements, the method behind them and the caveats live in the [agent-tools README](https://github.com/koenvdheide/agent-tools#what-codex-reviews-add).
 
-## Convergence mode (iterative review)
-
-Codex can run in a convergence loop for artifacts that evolve across multiple revisions (specs, plans, designs): review → fix → re-review until the reviewer gives an affirmative verdict or you stop. Claude orchestrates the loop with user gates after each round, and cites prior findings on each pass so the reviewer can detect drift. It also watches for the scope-drift failure mode, where each round's "real" findings pull the artifact into a design the user never asked for.
-
-See the Convergence Mode section in `skills/codex/SKILL.md` for the loop shape (two user decisions per round: which fixes to apply, then whether to continue), per-round prompt construction, and the anti-pattern guidance on when Claude should stop and re-confirm scope.
-
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/code)
@@ -28,7 +22,7 @@ See the Convergence Mode section in `skills/codex/SKILL.md` for the loop shape (
 
 ## Summary QA
 
-After summarising a high-stakes mode (`plan-review`, `red-team`, `diff-review`, `exhausted-hypotheses`, `attack-surface`) the skill re-reads its own summary against the fidelity rules before presenting it: every evaluative verb quoted verbatim, inline citations counted in prose as well as bullets.
+After summarising a high-stakes mode (`plan-review`, `red-team`, `diff-review`, `exhausted-hypotheses`, `attack-surface`) the skill re-reads its own summary against the fidelity rules before presenting it: every evaluative verb quoted verbatim, no explanatory bridge the source does not contain, inline citations counted in prose as well as bullets.
 
 ## Installation
 
@@ -49,6 +43,12 @@ Claude invokes the skill automatically when a task matches, or you can invoke it
 ```text
 /codex:codex red-team my authentication refactor plan
 ```
+
+## Convergence mode (iterative review)
+
+Codex can run in a convergence loop for artifacts that evolve across multiple revisions (specs, plans, designs): review → fix → re-review until the reviewer gives an affirmative verdict, you stop, or drift appears. Claude orchestrates the loop with user gates after each round, and cites prior findings on each pass so the reviewer can detect drift. It also watches for the scope-drift failure mode, where each round's "real" findings pull the artifact into a design the user never asked for.
+
+A round asks you for two decisions: which fixes to apply, then whether to continue. See the Convergence Mode section in `skills/codex/SKILL.md` for the loop shape, per-round prompt construction, and the anti-pattern guidance on when Claude should stop and re-confirm scope.
 
 ## License
 
