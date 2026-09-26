@@ -14,6 +14,10 @@ Brainstorm, Red-team, Debug, Plan Review, Diff Review, Spec Extraction, Rollout/
 
 Codex review catches design-level problems, and its findings can push past a local edit into a plan or direction change. Weakest on subjective style review. What it catches and where it misfires: the [agent-tools README](https://github.com/koenvdheide/agent-tools#what-codex-reviews-add).
 
+## Architectural ownership
+
+For code and technical-plan reviews, the skill requires an [ownership checklist](skills/codex/references/architectural-ownership.md) in every review prompt, including convergence rounds. It asks the reviewer to trace behaviour to its owning component, including dependencies and forks outside the diff, and distinguish legitimate adapter translation from compensation for another component's defect. Findings must name the proper owner and smallest fix there, or identify missing evidence. Explain mode omits this check.
+
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/code)

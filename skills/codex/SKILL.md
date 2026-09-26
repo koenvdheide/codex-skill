@@ -115,6 +115,8 @@ codex exec review --ephemeral -s read-only --commit abc123 -o c:/tmp/codex-revie
 codex exec review --ephemeral -s read-only "Focus on security" -o c:/tmp/codex-review.txt < /dev/null # Custom review instructions
 ```
 
+For an ownership review, the checklist must reach the reviewer. If the selected `codex exec review` form cannot carry custom instructions, use a prompted `codex exec` with the same explicit review target and scope.
+
 ### Resuming a Conversation
 
 The CLI carries multi-round work by itself, so no wrapper is needed. Capture the id, then resume
@@ -189,6 +191,12 @@ Rows with `-C` let Codex inspect the repository itself; `git log`, `git diff` an
 - **Chase down all output:** if `-o` file is empty but task completed successfully, check background task output file for actual analysis or paths where Codex wrote results. Never skip or dismiss review output because it ended up somewhere unexpected.
 - **Passing `-o` paths to subagents:** a subagent has the same Windows `/tmp/` blind spot as the main-session Read tool, so follow the `<temp>` rule above and `c:/tmp/codex-<slug>.txt` resolves natively. For a legacy `/tmp/...` output, either inline the content into the subagent prompt (up to ~50KB) or pass `$(cygpath -w /tmp/codex-<slug>.txt)`.
 
+## Architectural Ownership
+
+For code or technical-plan reviews, include the full [ownership checklist](references/architectural-ownership.md) in the reviewer prompt, outside the artifact. Apply it to every review recipe and convergence round; omit it for `explain`. Expand the ownership placeholders before invoking the CLI: a path or reminder alone does not give the reviewer the checklist.
+
+Each plugin ships its own copy so it can be installed independently. Keep the Codex and Antigravity copies aligned when updating this policy.
+
 ## Base Prompt Template
 
 One unified template. Adapt per mode by filling relevant fields and appending mode-specific instruction.
@@ -200,6 +208,8 @@ Context:
 {relevant plan, diff, logs, or summary — use the smallest useful artifact}
 Current belief: {your current approach or hypothesis, if any}
 Constraints: {time, risk, compatibility, scope — omit if none}
+
+{insert the full architectural ownership checklist when applicable}
 
 Return:
 - verdict or recommendation
@@ -291,6 +301,7 @@ $(git diff --staged)
 Current belief: {your hypothesis, so it can be attacked}
 Return: findings under two headings, Breakage and Simplifications, each given equal scrutiny.
 Simplicity bar: prefer deletion or inlining; for any addition, name the failure the smaller option cannot cover.
+{insert the full architectural ownership checklist when applicable}
 PROMPT
 
 ```
