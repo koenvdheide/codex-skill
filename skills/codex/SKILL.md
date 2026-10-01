@@ -157,7 +157,7 @@ for thread id` is one way in; an account usage limit, reported on stderr and now
 another.
 
 Resuming restores the prior context, so the model still recalls round 1 without you re-sending
-it, and the round bills far fewer tokens than a fresh run. Send the artifact again only when the artifact itself changed.
+it. Send the artifact again only when the artifact itself changed.
 
 **Resume by UUID, and check the header.** The identifier decides how a miss behaves. An unknown
 UUID fails loudly (`no rollout found for thread id <uuid>`). Anything that does not parse as a
@@ -210,8 +210,8 @@ anything from it as though the review finished.
 - **Cleanup:** after reading `-o` file, delete it (`rm -f <temp>/codex-<slug>.txt`, where `<temp>` is the same `c:/tmp` (Windows) / `/tmp` (Linux/macOS) location used for the `-o` write above). Temp files accumulate otherwise.
 - **Wait for completion:** NEVER read or delete `-o` file until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Codex finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
 - **Re-launch safety:** if re-launching a Codex invocation, use a DIFFERENT output slug (e.g., `<temp>/codex-redteam-auth-v2.txt`). Never reuse `-o` path of still-running or recently-launched invocation — two processes will collide on output file.
-- **Chase down all output:** if `-o` file is empty but task completed successfully, check background task output file for actual analysis or paths where Codex wrote results. Never skip or dismiss review output because it ended up somewhere unexpected.
-- **Passing `-o` paths to subagents:** a subagent has the same Windows `/tmp/` blind spot as the main-session Read tool, so follow the `<temp>` rule above and `c:/tmp/codex-<slug>.txt` resolves natively. For a legacy `/tmp/...` output, either inline the content into the subagent prompt (up to ~50KB) or pass `$(cygpath -w /tmp/codex-<slug>.txt)`.
+- **Background output is for diagnosis, not analysis.** An empty or missing `-o` means the run failed, so read stderr for the reason rather than reconstructing the review from the background log.
+- **Passing `-o` paths to subagents:** a subagent has the same blind spot as this session, so the `<temp>` rule above covers it. For a `/tmp/...` output already produced, inline the content into the subagent prompt (up to ~50KB) or pass `$(cygpath -w /tmp/codex-<slug>.txt)`.
 
 ## Architectural Ownership
 
@@ -450,7 +450,7 @@ Do NOT do these when prompting Codex:
 
 | Symptom | Likely cause | Fix |
 | ------- | ------------ | --- |
-| Hangs indefinitely | Outside a git repo or waiting for approval | Add `--skip-git-repo-check`; if approval prompts are the cause, check your sandbox setting |
+| Hangs indefinitely | Waiting for approval | Check your sandbox setting. Running outside a git repo does not hang: it fails at once with `Not inside a trusted directory and --skip-git-repo-check was not specified` and exits 1 |
 | `-o` file empty or missing | Codex failed before producing output | Check the background task output file (debug log) for shell errors or sandbox failures |
 | `windows sandbox: spawn setup refresh` in the debug log | Old CLI failing to launch the Windows sandbox helper (OS error 740) | Update the CLI first. If that is not possible: prompt-complete modes (red-team, diff-review, compare-decide) usually still produce output, so read the `-o` file before retrying, and treat the run as degraded if that file is empty, says required files could not be inspected, or the prompt did not carry the content Codex needed. Rerun with `-c 'windows.sandbox="unelevated"'` when file access is required. |
 | Background task output empty or contains only shell noise | Normal when using `-o` | The `-o` file has the clean analysis; the background output contains stderr/shell routing noise and serves as a debug log |
