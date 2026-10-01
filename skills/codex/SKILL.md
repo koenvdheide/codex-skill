@@ -93,7 +93,7 @@ Keep including in prompts: `"Use PowerShell-compatible commands (Get-Content, Se
 | `-i <FILE>` | Attach image(s) |
 | `--json` | JSONL event output to stdout |
 | `-o <FILE>` | Write final message to file |
-| `--skip-git-repo-check` | Run outside a git repository |
+| `--skip-git-repo-check` | Run outside a git repository; required there, see Reviewing outside a git repository |
 | `--ephemeral` | Don't persist session files. **Incompatible with `resume`:** no session is stored, so a later `resume` fails with `no rollout found for thread id`. Leave it off any run you may want to continue |
 
 ### Model Selection
@@ -176,6 +176,24 @@ And `--ephemeral` does not persist a session, so leave it off any run you intend
 For review modes, prefer a fresh one-shot over a resume. Asking a model to attack its own prior
 reasoning is what a resumed review does, and Convergence Mode below carries findings forward in
 the prompt instead.
+
+### Reviewing outside a git repository
+
+Plenty of review targets are not in a repo: a spec in a scratch directory, a downloaded file, a
+pasted log written to disk. `codex exec` refuses to start there, failing at once with `Not inside
+a trusted directory and --skip-git-repo-check was not specified` and exit 1.
+
+Pass `--skip-git-repo-check`. The run then starts normally and still reads files in the working
+directory, so a non-repo review behaves like any other.
+
+Treat the flag as part of the standard invocation for a non-repo target rather than an exception
+to reach for after a failure. **Directory trust does not substitute for it:** a run in a
+directory that `~/.codex/config.toml` lists under `[projects]` with `trust_level = "trusted"`
+still failed the gate, so do not send anyone editing config to solve this.
+
+The `review` subcommand's selectors (`--uncommitted`, `--base`, `--commit`) are git-based and
+have nothing to resolve outside a repo. Use a prompted `codex exec` instead, with the content
+fenced in the ARTIFACT markers.
 
 ### Working directory
 
