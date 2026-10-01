@@ -207,8 +207,9 @@ reviewer at the tree you mean, and treat every run as able to read wherever it s
 Three checks, in order, before you read a word of the analysis. **Exit code 0 means nothing
 here**: a run can fail and still exit 0.
 
-1. **Read stderr first.** An error lives only there. `no rollout found for thread id` from a
-   failed `resume`, a usage limit, an auth failure: none of them reach `-o`.
+1. **Read stderr first.** `no rollout found for thread id` from a failed `resume`, a usage
+   limit and an auth failure all land there and none of them reach `-o`. Under `--json`, failure
+   events appear on stdout as well.
 2. **Confirm `-o` exists.** You deleted it before launching, so if it is absent the run failed
    and there is nothing to read. Never substitute the background task output file for it.
 3. **Confirm the content answers the prompt you sent.** A file at the expected path is not
@@ -431,7 +432,7 @@ Codex summaries are a recurring source of QA errors. The failure mode is compres
 
 ### 1. Quote evaluative language verbatim, never paraphrase it
 
-Codex's verbs are calibrated. `"I disagree"` ≠ `"rejects"`. `"too narrow"` ≠ `"misses an entire class"`. `"targets the pattern class"` ≠ `"highest-leverage"`. If Codex used a measured verb, quote it — do not substitute a stronger rhetorical synonym when compressing.
+Quote the verb. `"I disagree"` ≠ `"rejects"`. `"too narrow"` ≠ `"misses an entire class"`. `"targets the pattern class"` ≠ `"highest-leverage"`. If Codex used a measured verb, quote it — do not substitute a stronger rhetorical synonym when compressing.
 
 ### 2. Do not add explanatory bridges that are not in source
 
@@ -450,7 +451,7 @@ After summarizing Codex output for `plan-review`, `red-team`, `diff-review`, `ex
 
 Low-stakes modes (`brainstorm`, `spec-extraction`, `explain`, `test-gaps`, `compare-decide`, `debug`, `post-mortem`, `rollout-rollback`) do not require the QA step — rely on the three rules above.
 
-**Short-output exception:** If the Codex output is under ~200 words AND contains no bullet lists, numbered findings, or file:line citations, the mandatory QA step can be skipped. The three failure modes all need more surface area than that to happen.
+**Short-output exception:** the mandatory QA step can be skipped for output under ~200 words with no bullet lists, numbered findings or file:line citations. That is a cost decision, not a guarantee: strength amplification fits in a single sentence.
 
 The QA check runs against the source Codex output and your summary, flagging strength amplification, fabricated bridges, undercounts, and line-number hallucinations. Errors caught in QA must be corrected in the summary before presentation, not annotated afterward.
 
