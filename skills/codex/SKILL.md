@@ -128,10 +128,10 @@ Name the model and the effort you used in any summary you present, so the user c
 Prefer `codex exec review` over `codex review` — supports full flag surface (`-m`, `--json`, `-o`). Top-level `codex review` works but has fewer options. `-m`, `--json` and `-o` are accepted after `review`; the parent-only flags `-s` and `-C` must come before it, or the parser rejects them with `unexpected argument`:
 
 ```bash
-codex exec --ephemeral -s read-only review --uncommitted -o c:/tmp/codex-review.txt < /dev/null  # Review working tree changes
-codex exec --ephemeral -s read-only review --base main -o c:/tmp/codex-review.txt < /dev/null    # Review changes against a branch
-codex exec --ephemeral -s read-only review --commit abc123 -o c:/tmp/codex-review.txt < /dev/null # Review a specific commit
-codex exec --ephemeral -s read-only review "Focus on security" -o c:/tmp/codex-review.txt < /dev/null # Custom review instructions
+codex exec --ephemeral -s read-only review --uncommitted -o c:/tmp/codex-review-uncommitted.txt < /dev/null  # Review working tree changes
+codex exec --ephemeral -s read-only review --base main -o c:/tmp/codex-review-base.txt < /dev/null    # Review changes against a branch
+codex exec --ephemeral -s read-only review --commit abc123 -o c:/tmp/codex-review-commit.txt < /dev/null # Review a specific commit
+codex exec --ephemeral -s read-only review "Focus on security" -o c:/tmp/codex-review-security.txt < /dev/null # Custom review instructions
 ```
 
 For an ownership review, the checklist must reach the reviewer. If the selected `codex exec review` form cannot carry custom instructions, use a prompted `codex exec` with the same explicit review target and scope.
@@ -150,7 +150,10 @@ codex exec resume "$SID" -o c:/tmp/codex-<slug>-r2.txt "<round 2 prompt>" < /dev
 ```
 
 Keep that stderr file until the round is validated. A run can print its header, capture a usable
-id, then fail with an empty `-o` file, and stderr is the only place saying why. One observed
+id, then fail with an empty `-o` file, and stderr is the only place saying why. **Read stderr
+before you read `-o`.** A failed run does not touch the `-o` path, so an earlier run's file is
+still sitting there and reads as this run's answer: measured, a `resume` that failed with `no
+rollout found for thread id` left a previous session's review in place at the same slug. One observed
 cause is a plain account usage limit, reported there and nowhere else.
 
 Resuming restores the prior context, so the model still recalls round 1 without you re-sending
