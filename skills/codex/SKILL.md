@@ -175,27 +175,15 @@ For review modes, prefer a fresh one-shot over a resume. Asking a model to attac
 reasoning is what a resumed review does, and Convergence Mode below carries findings forward in
 the prompt instead.
 
-### Mode-to-Sandbox Table
+### Modes that need the repo open
 
-| Mode | Sandbox | Why |
-| ---- | ------- | --- |
-| Brainstorm | `-s read-only` | No file access needed |
-| Red-team | `-s read-only` | Pure analysis |
-| Debug | `-s read-only -C "$(pwd)"` | Needs to read files to diagnose |
-| Plan Review | `-s read-only -C "$(pwd)"` | Needs to read codebase to verify assumptions |
-| Diff Review | `-s read-only -C "$(pwd)"` | Diff in the prompt, repo open so the change is judged against the file around it |
-| Spec Extraction | `-s read-only` | Ticket/code is provided in the prompt |
-| Rollout/Rollback | `-s read-only -C "$(pwd)"` | Needs to read codebase to assess operational risk |
-| Compare/Decide | `-s read-only` | Options are provided in the prompt |
-| Test Gaps | `-s read-only -C "$(pwd)"` | Needs to read the code to find gaps |
-| Explain | `-s read-only -C "$(pwd)"` | Needs to read the code to explain it |
-| Post-mortem | `-s read-only` | Logs/traces are provided in the prompt |
-| Attack Surface | `-s read-only -C "$(pwd)"` | Needs to read the target codebase/config to find vectors |
-| Exhausted Hypotheses | `-s read-only -C "$(pwd)"` | Needs to read codebase + pipeline context |
+`-s read-only` is mandatory for every mode (see above). The only per-mode choice is whether the
+reviewer also needs the repository open, which `-C "$(pwd)"` gives it.
 
-Rows with `-C` let Codex inspect the repository itself; `git log`, `git diff` and file reads all run under `-s read-only`, so none of these modes needs write access. Add `-C "$(pwd)"` to any other row when its material lives in a repo: a reviewer that can only see the excerpt you pasted cannot judge it against the code around it, or find the related problem the excerpt left out.
-
-**Windows caveat:** on an old build that logs `windows sandbox: spawn setup refresh`, every row here breaks. See the Windows sandbox note above.
+Add `-C "$(pwd)"` for Debug, Plan Review, Diff Review, Rollout/Rollback, Test Gaps, Explain,
+Attack Surface and Exhausted Hypotheses: each judges the artifact against surrounding code.
+Omit it for Brainstorm, Red-team, Spec Extraction, Compare/Decide and Post-mortem, where the
+prompt already carries everything under review.
 
 ### Execution Rules
 
@@ -355,11 +343,11 @@ Some review tasks converge rather than conclude. When reviewing an evolving arti
 2. Parse findings; summarize to the user; propose fixes.
 3. **Gate 1 — apply fixes.** Ask `yes-all / per-finding / skip`. Apply as selected.
 4. **Gate 2 — continue or stop.** Re-state the original one-sentence brief in your prompt. Ask `continue / stop / switch-mode`. If continue, loop to (1).
-5. Terminate when the reviewer's `verdict_text` is affirmative for the mode (`"approve"` / `"no redesign-class problem"` / `"no regressions"` for red-team; `"Yes."` / `"executable as-is"` for compare-decide; `"READY TO EXECUTE"` / `"approve"` / `"ready"` for plan-review; `"no regressions"` / `"approve"` for diff-review) AND no findings remain open; OR user stops; OR scope drift detected (see below).
+5. Terminate when the reviewer's verdict is affirmative for the mode (`"approve"` / `"no redesign-class problem"` / `"no regressions"` for red-team; `"Yes."` / `"executable as-is"` for compare-decide; `"READY TO EXECUTE"` / `"approve"` / `"ready"` for plan-review; `"no regressions"` / `"approve"` for diff-review) AND no findings remain open; OR user stops; OR scope drift detected (see below).
 
 ### Across-round prompt construction
 
-- Round 1: full artifact + question + (if using) structured directive.
+- Round 1: full artifact + question.
 - Round N > 1: also include a `Previously identified findings:` block listing prior findings (title, severity, status: addressed / skipped). This gives the reviewer drift-detection context and prevents re-finding the same issues by luck.
 - After context compaction: if the user resumes a cycle that lost context, they paste the current findings list back into the conversation. No persistent on-disk state is required; findings fit in the conversation.
 
