@@ -94,7 +94,7 @@ Keep including in prompts: `"Use PowerShell-compatible commands (Get-Content, Se
 | `--json` | JSONL event output to stdout |
 | `-o <FILE>` | Write final message to file |
 | `--skip-git-repo-check` | Run outside a git repository |
-| `--ephemeral` | Don't persist session files |
+| `--ephemeral` | Don't persist session files. **Incompatible with `resume`:** no session is stored, so a later `resume` fails with `no rollout found for thread id`. Leave it off any run you may want to continue |
 
 ### Model Selection
 
@@ -185,11 +185,27 @@ repository. A run with no `-C` inherits the shell's directory and reads from it:
 0.159.3, a run launched in a repo read `LICENSE` without `-C`. So pass `-C` to point the
 reviewer at the tree you mean, and treat every run as able to read wherever it starts.
 
+### Validate the run
+
+Three checks, in order, before you read a word of the analysis. **Exit code 0 means nothing
+here**: a run can fail and still exit 0.
+
+1. **Read stderr first.** An error lives only there. `no rollout found for thread id` from a
+   failed `resume`, a usage limit, an auth failure: none of them reach `-o`.
+2. **Confirm `-o` exists.** You deleted it before launching, so if it is absent the run failed
+   and there is nothing to read. Never substitute the background task output file for it.
+3. **Confirm the content answers the prompt you sent.** A file at the expected path is not
+   evidence it came from this run.
+
+A run failing any of these is unusable. Do not summarise it, quote it as a finding, or report
+anything from it as though the review finished.
+
 ### Execution Rules
 
 - Set generous Bash timeout, or omit when using `run_in_background: true`
 - Use `run_in_background: true` so user is not blocked waiting
 - **On any run whose analysis you will read back, use `-o <temp>/codex-<descriptive-slug>.txt`** to write final analysis to clean file, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` for the `-o` path on Windows — Bash in Git Bash resolves it to `%TEMP%` (the `-o` path is translated by Git Bash before Codex receives it) and the write succeeds, but Claude's Read tool treats the path literally and fails with `File does not exist` when you try to read the output back. Using `c:/tmp/...` on Windows makes both Codex's write and Claude's Read resolve to the same Windows-native location. Separates output from shell noise. Read the `-o` file for analysis, not the background task output file.
+- **Delete the `-o` path immediately before launching** (`rm -f c:/tmp/codex-<slug>.txt`). A failed run does not write it, so without this an earlier run's file survives and reads as this run's answer. With it, a missing file means the run failed.
 - When running in background, also use `2>&1` to capture stderr — background output file serves as debug log if `-o` file is empty or missing. Skip it when stderr is already going to its own file, as in the resume recipe: `2>&1` there would swallow the `session id` line the capture depends on
 - Add `--skip-git-repo-check` when running outside a git repository
 - **Cleanup:** after reading `-o` file, delete it (`rm -f <temp>/codex-<slug>.txt`, where `<temp>` is the same `c:/tmp` (Windows) / `/tmp` (Linux/macOS) location used for the `-o` write above). Temp files accumulate otherwise.
