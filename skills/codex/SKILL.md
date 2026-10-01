@@ -152,13 +152,12 @@ codex exec resume "$SID" -o c:/tmp/codex-<slug>-r2.txt "<round 2 prompt>" < /dev
 Keep that stderr file until the round is validated. A run can print its header, capture a usable
 id, then fail with an empty `-o` file, and stderr is the only place saying why. **Read stderr
 before you read `-o`.** A failed run does not touch the `-o` path, so an earlier run's file is
-still sitting there and reads as this run's answer: measured, a `resume` that failed with `no
-rollout found for thread id` left a previous session's review in place at the same slug. One observed
-cause is a plain account usage limit, reported there and nowhere else.
+still sitting there and reads as this run's answer. A `resume` that fails with `no rollout found
+for thread id` is one way in; an account usage limit, reported on stderr and nowhere else, is
+another.
 
 Resuming restores the prior context, so the model still recalls round 1 without you re-sending
-it, and the round bills far fewer tokens than a fresh run (493 against roughly 20k in one
-measured pair). Send the artifact again only when the artifact itself changed.
+it, and the round bills far fewer tokens than a fresh run. Send the artifact again only when the artifact itself changed.
 
 **Resume by UUID, and check the header.** The identifier decides how a miss behaves. An unknown
 UUID fails loudly (`no rollout found for thread id <uuid>`). Anything that does not parse as a
@@ -181,8 +180,8 @@ the prompt instead.
 ### Working directory
 
 `-C <dir>` selects the working directory; it does not decide whether the reviewer can reach a
-repository. A run with no `-C` inherits the shell's directory and reads from it: probed on
-0.159.3, a run launched in a repo read `LICENSE` without `-C`. So pass `-C` to point the
+repository. On 0.159.3 a run with no `-C` inherits the shell's directory and reads from it, so
+pass `-C` to point the
 reviewer at the tree you mean, and treat every run as able to read wherever it starts.
 
 ### Validate the run
