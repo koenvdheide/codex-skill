@@ -12,7 +12,7 @@ description: >-
 
 `codex exec` provides independent perspective from a separate AI agent. Runs locally, reads codebase, returns analysis to stdout.
 
-> **Shell prerequisite:** the recipes below use bash features (`/tmp/` paths, heredocs, `cygpath`). Claude Code ships with bash on every platform (native on Linux/macOS, Git Bash on Windows) so this is usually a non-issue — but if you're running Codex commands from native Windows `cmd` or PowerShell outside Claude Code, adapt the syntax.
+> **Shell prerequisite:** the recipes below use bash features (`/tmp/` paths, heredocs, `cygpath`), so they need bash: native on Linux and macOS, Git Bash on Windows. Adapt the syntax if you run them from PowerShell or `cmd`.
 
 ## When to Use Codex
 
