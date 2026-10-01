@@ -36,7 +36,7 @@ description: >-
 - Single-file mechanical edit (typo, rename, one-import change) with no new concepts
 - Answer is already in context
 - Conversation is active back-and-forth, or user indicated urgency — 1–5 min wait would break the flow
-- Already used Codex for this question this session, OR you're about to fire it and another reviewer on the same prompt — retry narrower prompt, or escalate to user
+- Already sent this question to Codex this session *against an unchanged artifact*, OR you're about to fire it and another reviewer on the same prompt — retry narrower prompt, or escalate to user. A convergence round is never a duplicate, because the artifact changed
 - No specific artifact or concrete question — just a topic or area to "think about"
 - Prompt would contain secrets, credentials, or PII
 - Question is about Claude Code internals (hooks, skills, MCP, settings) — `/claude-code-docs` knows, external CLIs don't
@@ -324,6 +324,7 @@ Ready-made patterns for common workflows:
 ```bash
 # -o paths below use /tmp (Linux/macOS); on Windows use c:/tmp instead, per the
 # <temp> convention in Execution Rules (Claude's Read tool can't resolve /tmp on Windows).
+N=$RANDOM   # one nonce per run; the ARTIFACT markers below are empty without it
 
 # Review staged changes adversarially
 codex exec --ephemeral -s read-only -m gpt-6.1-sol -c model_reasoning_effort=xhigh -C "$(pwd)" -o /tmp/codex-red-team.txt <<PROMPT
@@ -403,7 +404,7 @@ Some review tasks converge rather than conclude. When reviewing an evolving arti
 
 - **Never relay raw Codex output** to user. Extract disagreements, key risks, best next step.
 - If Codex disagrees with your approach, present **both perspectives** and let user decide.
-- If Codex finds clear errors, fix them before presenting. Flag debatable ones for user.
+- Present Codex's findings and let the user choose which to apply. A review request is not authority to edit the artifact.
 - **Weigh add-machinery findings before relaying.** For any finding that adds code, config, or process, state the smallest version of the fix and whether removing something closes the same hole. Attribute any smaller alternative you worked out yourself to yourself — the reviewer did not say it, and the fidelity rules below forbid presenting it as though it did. Present a finding whose only payoff is ceremony as optional, and label it as such. If a review comes back with additions and no cuts at all, say so; a finding count is not a verdict.
 - Structure alternatives as comparison table when presenting multiple options.
 - **Retry rule**: if Codex returns generic advice, rerun with narrower question and better-scoped artifact. Do not retry more than once.
