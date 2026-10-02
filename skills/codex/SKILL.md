@@ -16,41 +16,37 @@ description: >-
 
 ## When to Use Codex
 
-- **Exploring design space** — want alternatives before committing → **Brainstorm**
-- **Have a plan or design** — want weaknesses flagged (failure modes + over-engineering + missed simplifications) before investing implementation time → **Red-team**
-- **Change feels heavier than the problem it solves** — new abstraction, config surface, extra layer, or process step you suspect does not earn its keep → **Red-team**, with the question aimed at what to cut
-- **Bug where local reasoning is stuck** — obvious hypotheses ruled out, OR unfamiliar stack where causes/instrumentation/repro are non-obvious → **Debug**
-- **Plan spans multiple subsystems or has non-trivial step ordering** — want sequencing, gap, rollback review → **Plan Review**
-- **Have a diff or report** — want factual claims verified, regressions found, or mismatch with the ticket/spec caught (prose optional) → **Diff Review**
-- **Ticket is prose with implicit requirements, or legacy code lacks clear contracts** — need concrete acceptance checklist before coding → **Spec Extraction**
-- **Shipping risky change** — schema update, API change, migration with operational impact → **Rollout/Rollback**
-- **Want independent tradeoff evaluation to pick among a handful of concrete approaches** → **Compare/Decide**
-- **Want regression cases or edge conditions** — whether before coding a risky refactor or after finishing an implementation → **Test Gaps**
-- **Careful reading leaves meaningful parts unclear** — undocumented, complex algorithms, legacy code where the non-obvious logic needs surfacing → **Explain**
-- **Production incident or CI failure** — have logs/traces, need root cause → **Post-mortem**
-- **Security-sensitive design or diff, OR obvious attack vectors exhausted in ongoing testing** — auth, permissions, tenant boundaries, file upload, parser, secrets, untrusted input → **Attack Surface**
-- **Exhausted known hypotheses** — all leads investigated, dead-ends recorded, want external model to find what pipeline systematically missed → **Exhausted Hypotheses**
+- Alternatives before committing → **Brainstorm**
+- Weaknesses in a plan or design, or a change heavier than the problem it solves, with the question aimed at what to cut → **Red-team**
+- A bug where the obvious hypotheses are ruled out, or an unfamiliar stack → **Debug**
+- Step ordering across subsystems, gaps, rollback → **Plan Review**
+- Claims in a diff or report checked against the code → **Diff Review**
+- Implicit requirements turned into an acceptance checklist → **Spec Extraction**
+- A schema, API or migration change with operational impact → **Rollout/Rollback**
+- A handful of concrete approaches to choose between → **Compare/Decide**
+- Untested edges, before a risky refactor or after an implementation → **Test Gaps**
+- Non-obvious logic in undocumented or legacy code → **Explain**
+- Root cause from incident or CI logs → **Post-mortem**
+- Auth, tenant boundaries, parsers, untrusted input, or attack vectors already exhausted → **Attack Surface**
+- Novel hypotheses after a review that recorded its dead ends → **Exhausted Hypotheses**
 
 ## When NOT to Use Codex
 
-- Single-file mechanical edit (typo, rename, one-import change) with no new concepts
-- Answer is already in context
-- Conversation is active back-and-forth, or user indicated urgency — 1–5 min wait would break the flow
-- Already sent this question to Codex this session *against an unchanged artifact*, OR you're about to fire it and another reviewer on the same prompt — retry narrower prompt, or escalate to user. A convergence round is never a duplicate, because the artifact changed
-- No specific artifact or concrete question — just a topic or area to "think about"
-- Prompt would contain secrets, credentials, or PII
-- Question is about Claude Code internals (hooks, skills, MCP, settings) — `/claude-code-docs` knows, external CLIs don't
-- Answer lives in library/tool docs — WebFetch, Context7, or `man` is cheaper
-- Missing local facts — reproduce the issue, inspect logs, run `rg`/`git`/`blame`, or ask user for clarification — before outsourcing reasoning
-- Decision depends on product priority, compliance, or release timing not in my context — ask the user (who owns this) first
+- A mechanical single-file edit, or an answer already in context
+- An active back-and-forth or stated urgency, where a 1–5 min wait breaks the flow
+- The same question against an unchanged artifact, or another reviewer about to get the same prompt. A convergence round is never a duplicate, because the artifact changed
+- No concrete artifact or question, just a topic to think about
+- A prompt that would contain secrets, credentials, or PII
+- Claude Code internals — `/claude-code-docs` knows them, external CLIs do not
+- An answer that lives in library or tool docs, where fetching them is cheaper
+- Missing local facts: reproduce, read the logs, run `rg`/`git`/`blame`, or ask, before outsourcing the reasoning
+- Product priority, compliance, or release timing you do not own — ask the user
 
 ## Precedence
 
-When multiple bullets match a single prompt:
-
-- **WNTU wins over WTU.** If any When NOT to Use bullet matches, don't fire — even if a When to Use bullet also matches. If unsure, ask the user ("I'd skip Codex here because X; proceed anyway?") rather than firing.
-- **Among WTU, pick the most specific.** "Shipping risky change" over "Have a plan or design." "Security-sensitive diff" over "Have a diff or report." The more specific mode carries more relevant context.
-- **Among WNTU, privacy beats cost.** Privacy/confidentiality skips are hard (never fire). Session/cost skips are soft (can escalate to user). If a prompt would contain secrets, that overrides every other consideration.
+Apply the skip criteria first. A user's explicit request can override a cost or session skip, and
+never the privacy one: a prompt carrying secrets does not go, whatever else is true. Among the
+triggers, pick the most specific mode, which carries the most relevant context.
 
 ## Execution Reference
 
@@ -125,7 +121,7 @@ Name the model and the effort you used in any summary you present, so the user c
 
 ### Code Review
 
-Prefer `codex exec review` over `codex review` — supports full flag surface (`-m`, `--json`, `-o`). Top-level `codex review` works but has fewer options. `-m`, `--json` and `-o` are accepted after `review`; the parent-only flags `-s` and `-C` must come before it, or the parser rejects them with `unexpected argument`:
+`codex exec review` accepts more flags than top-level `codex review`. Put `-s` and `-C` before `review`; `-m`, `--json` and `-o` work after it. A misplaced parent flag is rejected with `unexpected argument`:
 
 ```bash
 codex exec --ephemeral -s read-only review --uncommitted -o c:/tmp/codex-review-uncommitted.txt < /dev/null  # Review working tree changes
@@ -194,46 +190,51 @@ fenced in the ARTIFACT markers.
 
 ### Working directory
 
-`-C <dir>` selects the working directory; it does not decide whether the reviewer can reach a
-repository. On 0.159.3 a run with no `-C` inherits the shell's directory and reads from it, so
-pass `-C` to point the
-reviewer at the tree you mean, and treat every run as able to read wherever it starts.
+On 0.159.3 a run with no `-C` inherits the shell's directory and reads from it. Pass `-C <dir>` to
+point the reviewer at the tree you mean, and treat it as selection rather than an access boundary.
 
 ### Validate the run
 
-Three checks, in order, before you read a word of the analysis. **Exit code 0 means nothing
+Three checks, in order, before reading a word of the analysis. **Exit code 0 means nothing
 here**: a run can fail and still exit 0.
 
-1. **Read stderr first.** `no rollout found for thread id` from a failed `resume`, a usage
-   limit and an auth failure all land there and none of them reach `-o`. Under `--json`, failure
-   events appear on stdout as well.
-2. **Confirm `-o` exists.** You deleted it before launching, so if it is absent the run failed
-   and there is nothing to read. Never substitute the background task output file for it.
+1. **Read stderr first.** A failed `resume` (`no rollout found for thread id`), a usage limit and
+   an auth failure all land there, and none of them reach `-o`. Under `--json`, failure events
+   appear on stdout as well.
+2. **Confirm this run's `-o` path now exists.** The path was unused at launch and a failed run
+   does not write it, so an absent file means the run failed. Never substitute the background
+   task output file for it.
 3. **Confirm the content answers the prompt you sent.** A file at the expected path is not
    evidence it came from this run.
 
-A run failing any of these is unusable. Do not summarise it, quote it as a finding, or report
+A run failing any check is unusable. Do not summarise it, quote it as a finding, or report
 anything from it as though the review finished.
 
 ### Execution Rules
 
-- Set generous Bash timeout, or omit when using `run_in_background: true`
-- Use `run_in_background: true` so user is not blocked waiting
-- **On any run whose analysis you will read back, use `-o <temp>/codex-<descriptive-slug>.txt`** to write final analysis to clean file, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` for the `-o` path on Windows — Bash in Git Bash resolves it to `%TEMP%` (the `-o` path is translated by Git Bash before Codex receives it) and the write succeeds, but Claude's Read tool treats the path literally and fails with `File does not exist` when you try to read the output back. Using `c:/tmp/...` on Windows makes both Codex's write and Claude's Read resolve to the same Windows-native location. Separates output from shell noise. Read the `-o` file for analysis, not the background task output file.
-- **Delete the `-o` path immediately before launching** (`rm -f c:/tmp/codex-<slug>.txt`). A failed run does not write it, so without this an earlier run's file survives and reads as this run's answer. With it, a missing file means the run failed.
-- When running in background, also use `2>&1` to capture stderr — background output file serves as debug log if `-o` file is empty or missing. Skip it when stderr is already going to its own file, as in the resume recipe: `2>&1` there would swallow the `session id` line the capture depends on
-- Add `--skip-git-repo-check` when running outside a git repository
-- **Cleanup:** after reading `-o` file, delete it (`rm -f <temp>/codex-<slug>.txt`, where `<temp>` is the same `c:/tmp` (Windows) / `/tmp` (Linux/macOS) location used for the `-o` write above). Temp files accumulate otherwise.
-- **Wait for completion:** NEVER read or delete `-o` file until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Codex finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
-- **Re-launch safety:** if re-launching a Codex invocation, use a DIFFERENT output slug (e.g., `<temp>/codex-redteam-auth-v2.txt`). Never reuse `-o` path of still-running or recently-launched invocation — two processes will collide on output file. **Stopping the background task does not stop `codex exec`:** it keeps running and writes its `-o` minutes later, so a killed run's slug is still live and its output can arrive after you have concluded the run produced nothing.
-- **Background output is for diagnosis, not analysis.** An empty or missing `-o` means the run failed, so read stderr for the reason rather than reconstructing the review from the background log.
-- **Passing `-o` paths to subagents:** a subagent has the same blind spot as this session, so the `<temp>` rule above covers it. For a `/tmp/...` output already produced, inline the content into the subagent prompt (up to ~50KB) or pass `$(cygpath -w /tmp/codex-<slug>.txt)`.
+- Run with `run_in_background: true` so the user is not blocked, with a generous Bash timeout or
+  none at all.
+- **Give every invocation its own unused `-o` path**, absolute and native: `c:/tmp/codex-<slug>.txt`
+  on Windows (`mkdir -p c:/tmp` once), `/tmp/codex-<slug>.txt` on Linux and macOS. An unused path
+  per run is what makes a missing file mean failure, and it removes the stale-file and collision
+  hazards without separate rules for retries and concurrent runs. Do not use `/tmp/...` on
+  Windows: Git Bash resolves it to `%TEMP%` and the write succeeds, while Claude's Read tool takes
+  the path literally and reports `File does not exist`. For a `/tmp/` output already produced,
+  pass `$(cygpath -w /tmp/codex-<slug>.txt)`.
+- Capture stderr to a file of its own. Use `2>&1` only where it has none: in the resume recipe
+  that would swallow the `session id` line the capture depends on.
+- Add `--skip-git-repo-check` outside a git repository.
+- **Wait for the `<task-notification>`** before reading or deleting the `-o` file. An empty or
+  missing file before then means nothing, and a premature delete destroys output the process is
+  about to write.
+- **Stopping the background task does not stop `codex exec`.** It keeps running and writes its
+  `-o` minutes later, so output can arrive after you have concluded the run produced nothing.
+- Read the `-o` file for the analysis; the background output is a debug log. Delete the output
+  after reading it (`rm -f <temp>/codex-<slug>.txt`), or temp files accumulate.
 
 ## Architectural Ownership
 
-For code or technical-plan reviews, include the full [ownership checklist](references/architectural-ownership.md) in the reviewer prompt, outside the artifact. Apply it to every review recipe and convergence round; omit it for `explain`. Expand the ownership placeholders before invoking the CLI: a path or reminder alone does not give the reviewer the checklist.
-
-Each plugin ships its own copy so it can be installed independently.
+For code or technical-plan reviews except `explain`, paste the full [ownership checklist](references/architectural-ownership.md) into the prompt, outside the artifact. Expand it before invoking the CLI: a path or a reminder does not give the reviewer the checklist.
 
 ## Base Prompt Template
 
@@ -274,63 +275,31 @@ Simplicity bar: prefer deletion, inlining, or code that already exists. For any 
 Response style: compress prose. Drop fillers, hedges, connectives unless load-bearing. Prefer short active sentences. Keep verbatim: code blocks, diffs, file:line citations, log entries, numbers, names, paths, quoted context, and tables (headers, cells, and structure). Never compress code. If compression would obscure a finding, write normal prose.
 ```
 
-Omit empty sections rather than forcing every field. The simplicity bar is the exception: send it in every prompt, in every mode, and trim other fields before it. A review left to its own defaults answers with additions (more validation, more layers, more configuration, more phases), which is the bias the paragraph cancels.
+Omit empty sections rather than forcing every field. The simplicity bar is the exception: send it in every prompt, in every mode, and trim other fields before it, because a review left to its own defaults answers with additions.
 
 ### Mode-Specific Additions
 
 Append one of these to the base template:
 
-- **Brainstorm**: "Generate 3-5 alternatives with tradeoffs. Include at least one option that solves the problem with less machinery than the current approach. End with a recommendation and why."
-- **Red-team**: "Find weaknesses. Structure response under two explicit headings, each given equal scrutiny (their lengths can differ):
+- **Brainstorm**: "Give alternatives with tradeoffs, including one that solves the problem with less machinery than the current approach. Recommend one and say why."
+- **Red-team**: "Find weaknesses under two headings, Breakage and Simplifications, with equal scrutiny to each; their lengths can differ.
 
-## Breakage
-Failure modes, edge cases, wrong assumptions. What could break. Attack assumptions. Give the strongest counterargument.
+Breakage: evidenced, reachable failures only. Name the caller, input or operational fault, the consequence, and the smallest fix that closes it. Prioritise auth, permissions, tenant isolation, data integrity, irreversible state, rollback and retry gaps, ordering and re-entrancy, degraded dependencies, version and schema skew, and failures that would stay hidden. Rule a failure out only where every caller guarantees the invariant across the whole data path, bearing in mind that runtime input, casts and assertions, peer or schema skew, cardinality assumptions, I/O and scheduling all defeat that guarantee. Prefer one fully-evidenced finding to three speculative ones. Where a fix would add defensive code, say first whether removing code prevents the same defect.
 
-Prioritize the classes of failure that are expensive, dangerous, or hard to detect:
-- auth, permissions, tenant isolation, and trust boundaries
-- data loss, corruption, duplication, and irreversible state changes
-- rollback safety, retries, partial failure, and idempotency gaps
-- race conditions, ordering assumptions, stale state, and re-entrancy
-- empty-state, null, timeout, and degraded-dependency behavior
-- version skew, schema drift, migration hazards, and compatibility regressions
-- observability gaps that would hide failure or make recovery harder
-
-Default to skepticism. Do not give credit for good intent, partial fixes, or likely follow-up work. If a code path only works on the happy path AND the sad path is reachable from an untrusted caller or a realistic operational failure, treat that as a real weakness. Prefer depth over breadth: one fully-evidenced finding beats three speculative ones.
-
-Do NOT flag as Breakage:
-- edge cases unless reachable through a less-trusted data path or realistic operational failure
-- missing validation at private call sites only when every caller already preserves the invariant across the full data path
-- missing error handling only for invariants guaranteed without runtime data, casts/assertions, peer/schema skew, or cardinality assumptions
-- "could in theory fail" without naming the caller, input, and concrete failure
-- missing retries/fallbacks only for deterministic in-process work; I/O, scheduling, and cross-process effects can fail operationally
-
-Prefer 'no finding' over a speculative finding. Every fix you propose must be the smallest one that closes the hole. Where the fix would ADD defensive code, first ask whether removing code prevents the same defect; where it would add a layer, flag, or abstraction, say what the one-line version costs and why it is insufficient.
-
-## Simplifications
-Over-engineering and missed reductions. Hunt for:
-- abstractions, interfaces, factories, registries, or base classes with a single caller or a single implementation
-- wrappers and indirection that only forward arguments
-- configuration, flags, and options nobody sets, and defaults nobody overrides
-- generality built for requirements that are not stated anywhere
-- validation, error taxonomies, or retries around inputs the call path or the type system already constrains
-- caching, bookkeeping, or duplicated state that recomputation would make unnecessary
-- ceremony around the change: scaffolding files, docs restating the code, tests asserting mocks or framework behavior
-- parallel copies of one fact (constants, schemas, docs) where everything could read one source
-
-For each: what to cut, merge, or flatten, why that is safe, expected impact. Biggest cut first. If the design is sound but heavier than the problem it solves, say so as the verdict, even when Breakage is empty. If you find nothing to cut, write 'nothing to cut' plus one sentence of why, and do not pad the section. Do NOT strip defensive code at system boundaries, WHY comments, or anything whose removal sacrifices clarity for brevity.
+Simplifications: safe deletions, inlining and reuse. Hunt single-caller abstractions, wrappers that only forward arguments, options nobody sets, generality for unstated requirements, validation the call path already constrains, bookkeeping recomputation would replace, and ceremony around the change. Biggest cut first, with what to cut and why that is safe. Protect boundary defences, WHY comments, and anything whose removal trades clarity for brevity. A design that is sound but heavier than its problem is itself the verdict.
 
 Do not agree just to be agreeable. Do not pad either heading to look balanced."
 - **Debug**: "Rank hypotheses by likelihood. Suggest the cheapest diagnostic step for each. Focus on hypotheses I am likely to have missed."
-- **Plan Review**: "Find missing steps, sequencing issues, rollback gaps, and operational risks. Also flag steps that could be dropped, merged, or handled by something the codebase already does. Cite file names and line numbers when pointing out issues."
-- **Diff Review**: "For each claim, verify from code or docs. Flag assumptions stated as facts. Check for stale information. Flag machinery the diff adds that its stated goal does not require. Include a blast-radius note: touched surfaces, downstream callers, and any migration or test surface the diff pulls into scope."
+- **Plan Review**: "Find missing steps, sequencing issues, rollback gaps, and operational risks. Cite file names and line numbers."
+- **Diff Review**: "Verify each claim against code or docs. Flag assumptions stated as facts, stale information, and machinery the stated goal does not require. Name the blast radius: touched surfaces, downstream callers, and any migration or test surface pulled into scope."
 - **Spec Extraction**: "Extract invariants, edge cases, non-goals, and a test checklist. Output a concrete acceptance criteria list, not prose. Mark which criteria the source states and which you inferred."
-- **Rollout/Rollback**: "Start from the simplest safe rollout and say whether a straight deploy covers this one. Add a phase, feature flag, or observability check only where you can name the failure it catches that a straight deploy would not. Give the rollback plan and identify the point of no return. Map the blast radius up front: touched surfaces, downstream callers, migrations, and operational impact."
+- **Rollout/Rollback**: "Say whether a straight deploy covers this. Add a phase, flag, or check only where you can name the failure a straight deploy would miss. Give the rollback plan and the point of no return. Map the blast radius: touched surfaces, downstream callers, migrations, operational impact."
 - **Compare/Decide**: "Evaluate each option against the stated constraints. For each, list strengths, weaknesses, and hidden risks. Add the smallest option that still meets the constraints, even if nobody listed it. Pick one and explain why."
-- **Test Gaps**: "Identify untested edge cases, missing error paths, and boundary conditions. Output a concrete test checklist, not general advice. Leave out tests that would only assert mock behavior or invariants the types already guarantee. Map the blast radius first — touched functions, downstream callers, and the test surface that should cover them — so the checklist reaches beyond the directly changed code."
+- **Test Gaps**: "Map touched functions, downstream callers, and the tests that should cover them. List untested boundaries and error paths as a checklist. Leave out tests that would only assert mock behaviour or invariants the types already guarantee."
 - **Explain**: "Read the code and explain what it does, why it's structured this way, and what the non-obvious parts are. Flag anything that looks like a bug or anti-pattern."
 - **Post-mortem**: "Analyze the timeline, identify the root cause, distinguish contributing factors from the trigger, and suggest preventive measures. Cite specific log entries as evidence."
-- **Attack Surface**: "Identify overlooked attack vectors, underexplored entry points, and non-obvious vulnerability classes for this target. Consider logic flaws, trust boundaries, race conditions, and chained weaknesses — not just OWASP top 10. Prioritize by likelihood and impact. For each finding, note the blast radius: the tenant isolation broken and the data or actions exposed."
-- **Exhausted Hypotheses**: "You are reviewing a codebase that has already been through extensive security analysis. All obvious and semi-obvious hypotheses have been investigated. Your job is to find what was missed — not what was already tried. Generate 5-10 novel vulnerability hypotheses NOT listed in the dead-ends or existing hypotheses. For each: (1) exact file:line, (2) attack scenario with concrete steps, (3) why a systematic review pipeline would miss this, (4) impact if exploitable, (5) what makes this esoteric or non-obvious."
+- **Attack Surface**: "Identify overlooked entry points and vulnerability classes, including logic flaws, trust boundaries, races, and chained weaknesses. Prioritise by likelihood and impact. Name the tenant isolation broken and the data or actions exposed."
+- **Exhausted Hypotheses**: "Find security hypotheses absent from the supplied dead ends and existing hypotheses. For each: exact file:line, concrete attack steps, impact if exploitable, and why a systematic review missed it."
 
 ## Shell Pipeline Recipes
 
@@ -363,44 +332,31 @@ Note: recipes use unquoted `<<PROMPT` (not `<<'PROMPT'`) so `$(...)` command sub
 
 ## Convergence Mode (iterative review)
 
-Some review tasks converge rather than conclude. When reviewing an evolving artifact — a spec, plan, or design that will go through multiple revisions — prefer running Codex in a **convergence loop**: repeat review → fix → re-review until the reviewer gives an affirmative verdict, the user stops, or scope drift is detected.
+When an artifact will go through several revisions, run a loop: review → fix → re-review. Allow
+2-5 min per round, longer for large artifacts or deep analysis.
 
-### When to use
+Round 1 sends the full artifact and the question. Every later round adds a
+`Previously identified findings:` block giving each prior finding's title, severity and status
+(addressed / skipped), so the reviewer is not re-finding the same issues by luck.
 
-- Reviewing an iterating artifact (spec, plan, design) that likely needs several revisions.
-- User has signaled iterative review; one-shot is insufficient.
-- There is time for multiple rounds (2-5 min per round typical; larger artifacts or deep analysis can run longer).
+Report each round's findings and ask which to apply, unless the user has already asked you to
+iterate to convergence; then apply clear wins and keep going, still pausing for anything that
+changes scope or behaviour. Stop when the verdict is affirmative and no findings remain open, or
+the user stops, or the loop has turned inward.
 
-### Loop shape
+**The loop is excellent at deepening a design and poor at questioning its direction.** Each
+round's findings are individually valid while the cumulative effect pulls the artifact somewhere
+the user never asked for. Two signs that it has turned inward, both of which mean putting the
+approach itself on the table rather than applying the next fix:
 
-1. Invoke Codex with the full artifact and a clear `Question:`.
-2. Parse findings; summarize to the user; propose fixes.
-3. **Gate 1 — apply fixes.** Ask `yes-all / per-finding / skip`. Apply as selected.
-4. **Gate 2 — continue or stop.** Re-state the original one-sentence brief in your prompt. Ask `continue / stop / switch-mode`. If continue, loop to (1).
-5. Terminate when the reviewer gives an explicitly affirmative verdict AND no findings remain open. Ask for the verdict on its own final line so it can be read without interpretation; OR user stops; OR scope drift detected (see below).
+- New rounds are finding issues in *fixes you added in prior rounds* rather than in the original
+  artifact. A falling finding count is consistent with this and with real convergence, so the
+  count settles nothing.
+- Simplifications findings get absorbed as refactors ("merge X and Y") rather than used as stop
+  signals ("did we need X or Y in the first place?").
 
-### Across-round prompt construction
-
-- Round 1: full artifact + question.
-- Round N > 1: also include a `Previously identified findings:` block listing prior findings (title, severity, status: addressed / skipped). This gives the reviewer drift-detection context and prevents re-finding the same issues by luck.
-- After context compaction: if the user resumes a cycle that lost context, they paste the current findings list back into the conversation. No persistent on-disk state is required; findings fit in the conversation.
-
-### Anti-pattern: the scope-drift spiral
-
-**The convergence loop is excellent at deepening a design and terrible at questioning its direction.** Each round's findings are individually valid, but the cumulative effect can pull the artifact into a regime the user never asked for. Signs of drift:
-
-- The artifact has grown by hundreds of lines per round.
-- New rounds are finding issues in *fixes you added in prior rounds* rather than in the original artifact.
-- Routine "yes-all" user responses with no pushback — either the user trusts the process (fine) or you're not surfacing options honestly (not fine).
-- Codex Simplifications findings get absorbed as refactors ("merge X and Y") rather than used as stop signals ("did we need X or Y in the first place?").
-- Per-finding drift detection (exact-title / evidence-overlap) shows zero drift — because *brief-level* drift does not show up as finding recurrence.
-
-**What to do:**
-
-1. **At every Gate 2, re-state the original one-sentence brief in your presentation.** Don't just ask "continue?" — ask "given the original goal, does this next round of fixes make sense?"
-2. **Weight Simplifications at least as heavily as Breakage.** The default bias is toward addition; correct for it by actively looking for "remove this" opportunities.
-3. **Monitor artifact size growth.** If a round grows the artifact by >50%, that is a signal to stop and re-confirm scope before continuing.
-4. **Treat routine user "yes-all" as a warning, not a go-ahead.** Add friction on purpose. Present simplify-first and remove-this options alongside add-machinery options.
+So re-state the original one-sentence brief when you ask whether to continue, and weight
+Simplifications at least as heavily as Breakage, since the default bias runs toward addition.
 
 ## Handling Output
 
@@ -413,30 +369,21 @@ Some review tasks converge rather than conclude. When reviewing an evolving arti
 
 ## Summarization Fidelity
 
-Codex summaries are a recurring source of QA errors. The failure mode is compression-with-punch: turning measured verbs into rhetorical ones and skimming past inline prose citations. Three rules, ordered by frequency of violation:
+Summaries of Codex output are a recurring source of errors, and the failure mode is
+compression-with-punch: measured verbs turned rhetorical, inline prose citations skimmed past.
+Before presenting any summary, check it against the source.
 
-### 1. Quote evaluative language verbatim, never paraphrase it
+1. **Quote evaluative language verbatim.** `"I disagree"` ≠ `"rejects"`. `"too narrow"` ≠
+   `"misses an entire class"`. Quote the verb rather than reaching for a stronger synonym.
+2. **Add no explanatory bridge the source does not contain.** When Codex makes a bare claim
+   without an example, do not supply one from elsewhere in your context. Connecting two true
+   facts is fabrication if Codex did not connect them. Attribute your own alternatives to
+   yourself.
+3. **Count citations in prose as well as in bullets.** `file:line` references often sit inside an
+   explanatory sentence, and enumerating only the list markers undercounts them.
 
-Quote the verb. `"I disagree"` ≠ `"rejects"`. `"too narrow"` ≠ `"misses an entire class"`. `"targets the pattern class"` ≠ `"highest-leverage"`. If Codex used a measured verb, quote it — do not substitute a stronger rhetorical synonym when compressing.
-
-### 2. Do not add explanatory bridges that are not in source
-
-When Codex makes a bare claim ("X is too narrow") without giving an example, do not add a parenthetical that supplies one from elsewhere in your context. The connection between two true facts is fabrication if Codex did not make it.
-
-- **Bad:** "Column 3 is too narrow (misses the case that broke last release)"
-- **Good:** "Column 3 is too narrow." [no example given by Codex]
-
-### 3. Count inline citations in prose, not just bullet lists
-
-Codex sometimes cites `file:line` inside an explanatory sentence rather than in a bullet. When counting call sites or references, scan the prose, not just the list markers. Undercounts happen when you enumerate bullets and miss inline citations.
-
-### Mandatory QA for high-stakes modes
-
-After summarizing Codex output for `plan-review`, `red-team`, `diff-review`, `exhausted-hypotheses`, or `attack-surface` modes, re-read your summary against the three rules above **before presenting it to the user**: re-read the source Codex output, quote every evaluative verb verbatim, add no explanatory bridge the source does not contain, and count inline citations in prose as well as in bullets. These modes produce the longest outputs and the highest-consequence summaries, and they are where summarization errors concentrate. The QA step is non-optional for them.
-
-Low-stakes modes (`brainstorm`, `spec-extraction`, `explain`, `test-gaps`, `compare-decide`, `debug`, `post-mortem`, `rollout-rollback`) do not require the QA step — rely on the three rules above.
-
-The QA check runs against the source Codex output and your summary, flagging strength amplification, fabricated bridges, undercounts, and line-number hallucinations. Errors caught in QA must be corrected in the summary before presentation, not annotated afterward.
+Verify every cited path and line against the repository, and correct what the check finds before
+presenting, rather than annotating it afterwards.
 
 ## Troubleshooting
 
