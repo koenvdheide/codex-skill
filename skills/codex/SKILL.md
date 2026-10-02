@@ -40,7 +40,7 @@ description: >-
 - Claude Code internals — `/claude-code-docs` knows them, external CLIs do not
 - An answer that lives in library or tool docs, where fetching them is cheaper
 - Missing local facts: reproduce, read the logs, run `rg`/`git`/`blame`, or ask, before outsourcing the reasoning
-- Product priority, compliance, or release timing you do not own — ask the user
+- Product priority, compliance, or release timing missing from context — ask the user
 
 ## Precedence
 
@@ -229,8 +229,8 @@ anything from it as though the review finished.
   about to write.
 - **Stopping the background task does not stop `codex exec`.** It keeps running and writes its
   `-o` minutes later, so output can arrive after you have concluded the run produced nothing.
-- Read the `-o` file for the analysis; the background output is a debug log. Delete the output
-  after reading it (`rm -f c:/tmp/codex-<slug>.txt`), or temp files accumulate.
+- Read the `-o` file for the analysis; the background output is a debug log. After validating and
+  reading it, delete this run's `-o` and stderr files, or temp files accumulate.
 
 ## Architectural Ownership
 
@@ -284,7 +284,7 @@ Append one of these to the base template:
 - **Brainstorm**: "Give alternatives with tradeoffs, including one that solves the problem with less machinery than the current approach. Recommend one and say why."
 - **Red-team**: "Find weaknesses under two headings, Breakage and Simplifications, with equal scrutiny to each; their lengths can differ.
 
-Breakage: evidenced, reachable failures only. Name the caller, input or operational fault, the consequence, and the smallest fix that closes it. Prioritise auth, permissions, tenant isolation, data integrity, irreversible state, rollback and retry gaps, ordering and re-entrancy, degraded dependencies, version and schema skew, and failures that would stay hidden. Rule a failure out only where every caller guarantees the invariant across the whole data path, bearing in mind that runtime input, casts and assertions, peer or schema skew, cardinality assumptions, I/O and scheduling all defeat that guarantee. Prefer one fully-evidenced finding to three speculative ones. Where a fix would add defensive code, say first whether removing code prevents the same defect.
+Breakage: evidenced, reachable failures only. Name the caller, input or operational fault, the consequence, and the smallest fix that closes it. Prioritise auth, permissions, tenant isolation, data integrity, irreversible state, rollback and retry gaps, ordering and re-entrancy, degraded dependencies, version and schema skew, and failures that would stay hidden. Do not flag missing validation at a private call site where the full data path already guarantees the invariant, and check runtime data, casts and assertions, peer or schema skew, cardinality assumptions, I/O and scheduling before relying on that guarantee. A public entry point validating untrusted input itself is not redundant. Prefer one fully-evidenced finding to three speculative ones. Where a fix would add defensive code, say first whether removing code prevents the same defect.
 
 Simplifications: safe deletions, inlining and reuse. Hunt single-caller abstractions, wrappers that only forward arguments, options nobody sets, generality for unstated requirements, validation the call path already constrains, bookkeeping recomputation would replace, and ceremony around the change. Biggest cut first, with what to cut and why that is safe. Protect boundary defences, WHY comments, and anything whose removal trades clarity for brevity. A design that is sound but heavier than its problem is itself the verdict.
 
@@ -310,7 +310,7 @@ Ready-made patterns for common workflows:
 N=$RANDOM   # one nonce per run; the ARTIFACT markers below are empty without it
 
 # Review staged changes adversarially
-codex exec --ephemeral -s read-only -m gpt-6.1-sol -c model_reasoning_effort=xhigh -C "$(pwd)" -o /tmp/codex-red-team.txt <<PROMPT
+codex exec --ephemeral -s read-only -m gpt-6.1-sol -c model_reasoning_effort=xhigh -C "$(pwd)" -o /tmp/codex-red-team-$N.txt <<PROMPT
 Mode: red-team
 Question: Find the most likely regressions in this diff.
 
@@ -342,12 +342,12 @@ Round 1 sends the full artifact and the question. Every later round adds a
 Report each round's findings and ask which to apply, unless the user has already asked you to
 iterate to convergence; then apply clear wins and keep going, still pausing for anything that
 changes scope or behaviour. Stop when the verdict is affirmative and no findings remain open, or
-the user stops, or the loop has turned inward.
+the user stops, or the next fixes depart from the original brief.
 
 **The loop is excellent at deepening a design and poor at questioning its direction.** Each
 round's findings are individually valid while the cumulative effect pulls the artifact somewhere
-the user never asked for. Two signs that it has turned inward, both of which mean putting the
-approach itself on the table rather than applying the next fix:
+the user never asked for. Two signals to re-check whether the next fixes still
+serve the original brief:
 
 - New rounds are finding issues in *fixes you added in prior rounds* rather than in the original
   artifact. A falling finding count is consistent with this and with real convergence, so the
@@ -355,13 +355,14 @@ approach itself on the table rather than applying the next fix:
 - Simplifications findings get absorbed as refactors ("merge X and Y") rather than used as stop
   signals ("did we need X or Y in the first place?").
 
-So re-state the original one-sentence brief when you ask whether to continue, and weight
-Simplifications at least as heavily as Breakage, since the default bias runs toward addition.
+So carry the original one-sentence brief into every round and check the proposed fixes against
+it, and weight Simplifications at least as heavily as Breakage, since the default bias runs
+toward addition.
 
 ## Handling Output
 
 - **Never relay raw Codex output** to user. Extract disagreements, key risks, best next step.
-- **Verify every cited path, symbol and line number against the codebase before presenting a finding.** Codex can hallucinate them.
+- **Verify each finding against the code or evidence before presenting it**, including cited paths, symbols and line numbers. Codex can hallucinate a citation, and a false claim can carry a real one.
 - If Codex disagrees with your approach, present **both perspectives** and let user decide.
 - Present Codex's findings and let the user choose which to apply. A review request is not authority to edit the artifact.
 - **Weigh add-machinery findings before relaying.** For any finding that adds code, config, or process, state the smallest version of the fix and whether removing something closes the same hole. Attribute any smaller alternative you worked out yourself to yourself — the reviewer did not say it, and the fidelity rules below forbid presenting it as though it did. Present a finding whose only payoff is ceremony as optional, and label it as such. If a review comes back with additions and no cuts at all, say so; a finding count is not a verdict.
@@ -369,8 +370,6 @@ Simplifications at least as heavily as Breakage, since the default bias runs tow
 
 ## Summarization Fidelity
 
-Summaries of Codex output are a recurring source of errors, and the failure mode is
-compression-with-punch: measured verbs turned rhetorical, inline prose citations skimmed past.
 Before presenting any summary, check it against the source.
 
 1. **Quote evaluative language verbatim.** `"I disagree"` ≠ `"rejects"`. `"too narrow"` ≠
@@ -382,8 +381,7 @@ Before presenting any summary, check it against the source.
 3. **Count citations in prose as well as in bullets.** `file:line` references often sit inside an
    explanatory sentence, and enumerating only the list markers undercounts them.
 
-Verify every cited path and line against the repository, and correct what the check finds before
-presenting, rather than annotating it afterwards.
+Correct what the check finds before presenting it.
 
 ## Troubleshooting
 
