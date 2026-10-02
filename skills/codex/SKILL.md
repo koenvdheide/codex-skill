@@ -124,10 +124,10 @@ Name the model and the effort you used in any summary you present, so the user c
 `codex exec review` accepts more flags than top-level `codex review`. Put `-s` and `-C` before `review`; `-m`, `--json` and `-o` work after it. A misplaced parent flag is rejected with `unexpected argument`:
 
 ```bash
-codex exec --ephemeral -s read-only review --uncommitted -o c:/tmp/codex-review-uncommitted.txt < /dev/null  # Review working tree changes
-codex exec --ephemeral -s read-only review --base main -o c:/tmp/codex-review-base.txt < /dev/null    # Review changes against a branch
-codex exec --ephemeral -s read-only review --commit abc123 -o c:/tmp/codex-review-commit.txt < /dev/null # Review a specific commit
-codex exec --ephemeral -s read-only review "Focus on security" -o c:/tmp/codex-review-security.txt < /dev/null # Custom review instructions
+codex exec --ephemeral -s read-only review --uncommitted -o c:/tmp/codex-review-uncommitted-<run>.txt < /dev/null  # Review working tree changes
+codex exec --ephemeral -s read-only review --base main -o c:/tmp/codex-review-base-<run>.txt < /dev/null    # Review changes against a branch
+codex exec --ephemeral -s read-only review --commit abc123 -o c:/tmp/codex-review-commit-<run>.txt < /dev/null # Review a specific commit
+codex exec --ephemeral -s read-only review "Focus on security" -o c:/tmp/codex-review-security-<run>.txt < /dev/null # Custom review instructions
 ```
 
 For an ownership review, the checklist must reach the reviewer. If the selected `codex exec review` form cannot carry custom instructions, use a prompted `codex exec` with the same explicit review target and scope.
