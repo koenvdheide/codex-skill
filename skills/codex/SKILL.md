@@ -414,7 +414,7 @@ Some review tasks converge rather than conclude. When reviewing an evolving arti
 
 **What to do:**
 
-1. **At every Gate 2, re-state the original one-sentence brief in your presentation.** Don't just ask "continue?" — ask "given the original goal, does this next round of fixes make sense?" Carry the word count of whichever mechanism the rounds keep touching, against its count at round 1, so growth inside a shrinking artifact stays visible.
+1. **At every Gate 2, re-state the original one-sentence brief in your presentation.** Don't just ask "continue?" — ask "given the original goal, does this next round of fixes make sense?"
 2. **Weight Simplifications at least as heavily as Breakage.** The default bias is toward addition; correct for it by actively looking for "remove this" opportunities.
 3. **Monitor artifact size growth.** If a round grows the artifact by >50%, that is a signal to stop and re-confirm scope before continuing.
 4. **Treat routine user "yes-all" as a warning, not a go-ahead.** Add friction on purpose. Present simplify-first and remove-this options alongside add-machinery options.
