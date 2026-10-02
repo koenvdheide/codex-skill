@@ -351,9 +351,10 @@ Round 1 sends the full artifact and the question. Every later round adds a
 `Previously identified findings:` block giving each prior finding's title, severity and status
 (addressed / skipped), so the reviewer is not re-finding the same issues by luck.
 
-Report each round's findings and ask which to apply, unless the user has already asked you to
-iterate to convergence; then apply clear wins and keep going, still pausing for anything that
-changes scope or behaviour. Stop when the verdict is affirmative and no findings remain open, or
+Report each round's findings and ask which to apply, then re-state the original brief and ask
+whether to continue, stop or switch mode. Unless the user has already asked you to iterate to
+convergence: then apply clear wins and keep going, still pausing for anything that changes
+scope or behaviour. Stop when the verdict is affirmative and no findings remain open, or
 the user stops, or the next fixes depart from the original brief.
 
 **The loop is excellent at deepening a design and poor at questioning its direction.** Each
