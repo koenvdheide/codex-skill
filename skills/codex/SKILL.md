@@ -72,6 +72,8 @@ A prompt argument and piped stdin now combine: both reach Codex, so a piped arti
 - **Temp file pattern**: write full prompt to temp file, then `cat tmpfile | codex exec --ephemeral -s read-only`
 - **Quoted heredoc**: `<<'PROMPT'` prevents every expansion, so no `$(...)` interpolation is possible inside it
 
+**A body line equal to the delimiter ends the heredoc there**, and the rest of your prose is then parsed as shell, which surfaces as a syntax error far from the real cause. Reviewing a prompt-engineering document makes this near-certain, since such files end their own recipes with a bare delimiter line. Nonce the delimiter, or use the pipe and temp-file patterns above, where the artifact arrives through `$(cat file)` and survives intact.
+
 **Always pass `-s read-only`.** `codex exec` already reports `sandbox: read-only` with no `-s` on 0.159.3, but configuration can change that default, so state it rather than inherit it. The exception is `codex exec resume`, which inherits the original session's sandbox and rejects `-s` outright.
 
 **Windows sandbox note:** some older Codex builds could not launch the Windows sandbox helper, so every sandboxed tool call died with `windows sandbox: spawn setup refresh` or OS error 740 before PowerShell started (openai/codex#25362, since closed). The failure no longer reproduces on a current build: file reads under `-s read-only` and an in-workspace write under `-s workspace-write` both succeeded with no such warning. If you do hit those log lines, update the CLI first. On an install you cannot update, embed the needed file contents in the prompt and run `-s read-only`: prompt-complete modes (red-team, diff-review, compare-decide) usually still produce output, so read the `-o` file before retrying, and treat the run as degraded if it is empty, says required files could not be inspected, or the prompt did not carry what Codex needed. Add `-c 'windows.sandbox="unelevated"'` for the modes where Codex must inspect files itself (that backend cannot enforce deny-read rules or split writable-root sets, so avoid it for runs that depend on those).
@@ -210,10 +212,20 @@ here**: a run can fail and still exit 0.
 A run failing any check is unusable. Do not summarise it, quote it as a finding, or report
 anything from it as though the review finished.
 
+**What a long run looks like from outside.** stderr is the header, then your whole prompt
+echoed verbatim, then the final answer, then the hook and token lines. So its size tracks
+what you sent rather than progress, and reading it whole pulls your own prompt plus a
+duplicate of the `-o` content into context: read the header and the tail instead.
+Reasoning summaries default to `none`, so a long run emits almost nothing; pass
+`-c model_reasoning_summary=concise` (`auto`, `concise`, `detailed`, `none`) when you want
+progress on one. Without it, liveness is the process existing and `-o` appearing at the end.
+
 ### Execution Rules
 
-- Run with `run_in_background: true` so the user is not blocked, with a generous Bash timeout or
-  none at all.
+- Run with `run_in_background: true` so the user is not blocked. Size the timeout to the
+  expected *output*, not to the artifact: at the same effort, a review that must produce a
+  long list of findings runs far longer than one answering a narrow question, and a 48KB
+  prompt at `xhigh` took 35 minutes. A run stopped at its limit mid-write leaves no `-o`.
 - **Give every invocation its own unused `-o` path**, absolute and native: `c:/tmp/codex-<slug>.txt`
   on Windows (`mkdir -p c:/tmp` once), `/tmp/codex-<slug>.txt` on Linux and macOS. An unused path
   per run is what makes a missing file mean failure, and it removes the stale-file and collision
