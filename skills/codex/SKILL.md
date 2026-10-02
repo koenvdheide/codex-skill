@@ -268,6 +268,8 @@ Return:
 - missing evidence
 - concrete next step
 
+Zero findings is a valid result. Put the verdict on its own final line, beginning `VERDICT:`.
+
 Be direct and concrete. If evidence is insufficient, say exactly what is missing.
 
 Simplicity bar: prefer deletion, inlining, or code that already exists. For any recommendation that adds a layer, wrapper, config knob, flag, interface, or file, name the reachable failure or the stated requirement that the smaller option cannot cover, and drop the recommendation if you cannot. Do not propose abstractions with a single caller or a single implementation, or generality for requirements nobody has stated. Keep checks at trust and system boundaries. If the artifact is already heavier than its stated scope, say that first.
