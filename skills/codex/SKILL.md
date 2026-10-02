@@ -230,7 +230,7 @@ anything from it as though the review finished.
 - **Stopping the background task does not stop `codex exec`.** It keeps running and writes its
   `-o` minutes later, so output can arrive after you have concluded the run produced nothing.
 - Read the `-o` file for the analysis; the background output is a debug log. Delete the output
-  after reading it (`rm -f <temp>/codex-<slug>.txt`), or temp files accumulate.
+  after reading it (`rm -f c:/tmp/codex-<slug>.txt`), or temp files accumulate.
 
 ## Architectural Ownership
 
@@ -306,7 +306,7 @@ Do not agree just to be agreeable. Do not pad either heading to look balanced."
 Ready-made patterns for common workflows:
 
 ```bash
-# -o paths below use /tmp (Linux/macOS); on Windows use c:/tmp, per the <temp> convention.
+# -o paths below use /tmp (Linux/macOS); on Windows use c:/tmp, so Codex and Read agree.
 N=$RANDOM   # one nonce per run; the ARTIFACT markers below are empty without it
 
 # Review staged changes adversarially
