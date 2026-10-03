@@ -87,6 +87,7 @@ Keep including in prompts: `"Use PowerShell-compatible commands (Get-Content, Se
 | `-m <MODEL>` | Model for this run; pin it per Model Selection below |
 | `-s <MODE>` | Sandbox: `read-only`, `workspace-write`, `danger-full-access` |
 | `-c model_reasoning_effort=<level>` | Reasoning effort for this run; the API rejects an unknown level and names the ones it accepts |
+| `-c web_search=<mode>` | Web access for this run: `disabled`, `cached`, `indexed` or `live`. Pin `live` for a review, so a fact the reviewer checks is the current one; `cached` risks a stale answer arriving as verification. |
 | `-C <DIR>` | Set working directory |
 | `-i <FILE>` | Attach image(s) |
 | `--json` | JSONL event output to stdout |
@@ -96,7 +97,7 @@ Keep including in prompts: `"Use PowerShell-compatible commands (Get-Content, Se
 
 ### Model Selection
 
-Pin both the model and the reasoning effort on every run. `~/.codex/config.toml` carries defaults for interactive use, and a review this skill fires should not inherit whatever they happen to be.
+Pin the model, the reasoning effort and web search on every run. `~/.codex/config.toml` carries defaults for interactive use, and a review this skill fires should not inherit whatever they happen to be.
 
 | Model | Reach for it when |
 | ----- | ----------------- |
@@ -104,6 +105,12 @@ Pin both the model and the reasoning effort on every run. `~/.codex/config.toml`
 | `gpt-6-astra` | A miss is expensive: a spec or plan you are about to build on, an attack surface, a design decision that is costly to unwind. |
 
 An unavailable model fails with `400 ... not supported when using Codex with a ChatGPT account`. That message blames the account, and a stale CLI produces it too: `gpt-6.1-sol` returned it on `codex-cli 0.153.4` and ran fine on `0.159.3`. Run `codex update` before concluding a model is out of reach.
+
+**Pass `-c web_search=live` on a review.** A reviewer that can check a changelog, a flag or a
+version settles the checkable claims itself instead of handing them back as uncertainties, and a
+stale cached answer presented as verification is worse than none. The accepted modes are
+`disabled`, `cached`, `indexed` and `live`; the difference between `indexed` and `live` is not
+documented, so prefer `live` where currency is the point.
 
 Set the effort from the mode, with `-c model_reasoning_effort=<level>`:
 
